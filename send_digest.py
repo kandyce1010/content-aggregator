@@ -73,8 +73,14 @@ def main():
         if not args.save_only:
             logger.info(f"Sending email digest to {args.email}...")
             sender = EmailSender(region_name=args.region, profile_name=args.profile)
-            response = sender.send_direct_email(args.email, args.subject, html_content)
-            logger.info(f"Email sent successfully! Message ID: {response['MessageId']}")
+            
+            # Use the new send_digest method instead of send_direct_email
+            response = sender.send_digest(args.email, args.subject, html_content)
+            
+            if response.get('Status') == 'Subscription email sent' or response.get('Status') == 'Please confirm your subscription':
+                logger.info("Subscription email sent. Please check your inbox and confirm the subscription before receiving digests.")
+            else:
+                logger.info(f"Email sent successfully! Message ID: {response.get('MessageId', 'Unknown')}")
         
         return 0
         

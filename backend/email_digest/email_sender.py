@@ -121,6 +121,88 @@ class EmailSender:
             logger.error(f"Error sending email digest: {e}")
             raise
     
+    def send_digest(self, email_address: str, subject: str, html_content: str) -> Dict[str, Any]:
+        """
+        Send a digest to an email address using a persistent topic.
+        
+        Args:
+            email_address (str): Recipient email address
+            subject (str): Email subject
+            html_content (str): HTML content of the email
+        
+        Returns:
+            dict: Response from SNS publish API
+        """
+        try:
+            # Get or create a persistent topic
+            topic_name = "content-aggregator-digest"
+            
+            # List topics to check if ours exists
+            topics_response = self.sns.list_topics()
+            topic_arn = None
+            
+            for topic in topics_response.get('Topics', []):
+                if topic_name in topic['TopicArn']:
+                    topic_arn = topic['TopicArn']
+                    break
+            
+            # Create topic if it doesn't exist
+            if not topic_arn:
+                create_response = self.sns.create_topic(Name=topic_name)
+                topic_arn = create_response['TopicArn']
+                logger.info(f"Created new SNS topic: {topic_arn}")
+            else:
+                logger.info(f"Using existing SNS topic: {topic_arn}")
+            
+            # Check if email is already subscribed
+            subscriptions = self.sns.list_subscriptions_by_topic(TopicArn=topic_arn)
+            is_subscribed = False
+            is_confirmed = False
+            
+            for sub in subscriptions.get('Subscriptions', []):
+                if sub.get('Protocol') == 'email' and sub.get('Endpoint') == email_address:
+                    is_subscribed = True
+                    if sub.get('SubscriptionArn') == 'PendingConfirmation':
+                        logger.info(f"Email {email_address} is pending confirmation. Please check your inbox.")
+                    else:
+                        logger.info(f"Email {email_address} is already subscribed and confirmed.")
+                        is_confirmed = True
+                    break
+            
+            # Subscribe email if not already subscribed
+            if not is_subscribed:
+                self.sns.subscribe(
+                    TopicArn=topic_arn,
+                    Protocol='email',
+                    Endpoint=email_address
+                )
+                logger.info(f"Subscription email sent to {email_address}. Please confirm before receiving digests.")
+                return {"MessageId": "Pending subscription confirmation", "Status": "Subscription email sent"}
+            
+            # If subscribed but not confirmed, remind user
+            if is_subscribed and not is_confirmed:
+                return {"MessageId": "Pending subscription confirmation", "Status": "Please confirm your subscription"}
+            
+            # Send the digest
+            message = {
+                'default': f"Your daily content digest is ready.",
+                'email': html_content
+            }
+            
+            response = self.sns.publish(
+                TopicArn=topic_arn,
+                Message=json.dumps(message),
+                Subject=subject,
+                MessageStructure='json'
+            )
+            
+            logger.info(f"Digest sent via SNS: {response['MessageId']}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error sending digest: {e}")
+            raise
+    
     def send_direct_email(self, 
                          email_address: str, 
                          subject: str, 
@@ -191,6 +273,6 @@ if __name__ == "__main__":
     
     # Send the email
     sender = EmailSender(region_name=args.region, profile_name=args.profile)
-    response = sender.send_direct_email(args.email, args.subject, html_content)
+    response = sender.send_digest(args.email, args.subject, html_content)
     
-    print(f"Email sent successfully! Message ID: {response['MessageId']}")
+    print(f"Email process completed! Status: {response.get('Status', 'Sent')} Message ID: {response.get('MessageId', 'N/A')}")
