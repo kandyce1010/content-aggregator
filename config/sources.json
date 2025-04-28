@@ -1,0 +1,100 @@
+{
+  "rss_feeds": [
+    {
+      "name": "AWS Blog",
+      "url": "https://aws.amazon.com/blogs/aws/feed/",
+      "category": "cloud"
+    },
+    {
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "category": "tech_news"
+    },
+    {
+      "name": "Hacker News",
+      "url": "https://news.ycombinator.com/rss",
+      "category": "tech_news"
+    },
+    {
+      "name": "Python Blog",
+      "url": "https://blog.python.org/feeds/posts/default",
+      "category": "programming"
+    },
+    {
+      "name": "CSS-Tricks",
+      "url": "https://css-tricks.com/feed/",
+      "category": "web_development"
+    }
+  ],
+  "youtube_channels": [
+    {
+      "name": "AWS Events",
+      "channel_id": "UCdoadna9HFHsxXWhafhNvKw",
+      "category": "cloud"
+    },
+    {
+      "name": "Google Developers",
+      "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "category": "programming"
+    },
+    {
+      "name": "TechWorld with Nana",
+      "channel_id": "UCdngmbVKX1Tgre699-XLlUA",
+      "category": "devops"
+    }
+  ],
+  "linkedin_profiles": [
+    {
+      "name": "AWS",
+      "url": "https://www.linkedin.com/company/amazon-web-services/",
+      "category": "cloud"
+    },
+    {
+      "name": "Google Cloud",
+      "url": "https://www.linkedin.com/company/googlecloud/",
+      "category": "cloud"
+    },
+    {
+      "name": "Microsoft Developer",
+      "url": "https://www.linkedin.com/company/microsoft-developer/",
+      "category": "programming"
+    },
+    {
+      "name": "Swaminathan Sivasubramanian",
+      "url": "https://www.linkedin.com/in/swaminathansivasubramanian/",
+      "category": "aws_leadership"
+    },
+    {
+      "name": "Jeff Barr",
+      "url": "https://www.linkedin.com/in/jeffbarr/",
+      "category": "aws_leadership"
+    },
+    {
+      "name": "Brian Beach",
+      "url": "https://www.linkedin.com/in/brianjbeach/",
+      "category": "aws_advocacy"
+    }
+  ],
+  "search_queries": [
+    {
+      "platform": "medium",
+      "query": "Amazon Q Developer",
+      "category": "ai_tools"
+    },
+    {
+      "platform": "medium",
+      "query": "AWS Generative AI",
+      "category": "ai_tools"
+    },
+    {
+      "platform": "devto",
+      "query": "Amazon Q Developer",
+      "category": "ai_tools"
+    },
+    {
+      "platform": "devto",
+      "query": "AWS CodeWhisperer",
+      "category": "ai_tools"
+    }
+  ]
+}
