@@ -91,23 +91,87 @@ class DigestGenerator:
         
         return truncated_text
     
-    def _clean_html(self, text: str) -> str:
+    def _is_q_related(self, item: Dict[str, Any]) -> bool:
         """
-        Clean HTML content for email compatibility.
+        Determine if an item is related to Amazon Q or coding assistants.
         
         Args:
-            text (str): HTML text to clean.
+            item (dict): Content item to check
             
         Returns:
-            str: Cleaned HTML text.
+            bool: True if the item is related to Amazon Q or coding assistants
         """
-        # Basic HTML cleaning for email compatibility
-        # Remove potentially problematic tags or attributes
-        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL)
-        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
-        text = re.sub(r'<iframe[^>]*>.*?</iframe>', '', text, flags=re.DOTALL)
+        q_keywords = [
+            'amazon q', 'q developer', 'coding assistant', 'ai pair programming',
+            'code generation', 'code completion', 'ai coding', 'generative ai',
+            'llm', 'large language model', 'codewhisperer', 'copilot'
+        ]
         
-        return text
+        # Check title
+        title = item.get('title', '').lower()
+        for keyword in q_keywords:
+            if keyword in title:
+                return True
+        
+        # Check summary/description
+        summary = item.get('summary', '').lower()
+        for keyword in q_keywords:
+            if keyword in summary:
+                return True
+        
+        return False
+
+    def _get_item_relevance_score(self, item: Dict[str, Any]) -> int:
+        """
+        Calculate a relevance score for an item based on Q-related keywords.
+        Higher score means more relevant to Amazon Q.
+        
+        Args:
+            item (dict): Content item to score
+            
+        Returns:
+            int: Relevance score (0-100)
+        """
+        primary_keywords = ['amazon q', 'q developer', 'codewhisperer']
+        secondary_keywords = ['coding assistant', 'ai pair programming', 'code generation']
+        tertiary_keywords = ['generative ai', 'llm', 'large language model', 'ai coding']
+        competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
+        
+        score = 0
+        title = item.get('title', '').lower()
+        summary = item.get('summary', '').lower()
+        content = title + ' ' + summary
+        
+        # Primary keywords (Amazon Q specific)
+        for keyword in primary_keywords:
+            if keyword in title:
+                score += 50
+            elif keyword in summary:
+                score += 30
+        
+        # Secondary keywords (coding assistant specific)
+        for keyword in secondary_keywords:
+            if keyword in title:
+                score += 30
+            elif keyword in summary:
+                score += 20
+        
+        # Tertiary keywords (general AI/ML)
+        for keyword in tertiary_keywords:
+            if keyword in title:
+                score += 15
+            elif keyword in summary:
+                score += 10
+        
+        # Competitor keywords
+        for keyword in competitor_keywords:
+            if keyword in title:
+                score += 25
+            elif keyword in summary:
+                score += 15
+        
+        # Cap the score at 100
+        return min(score, 100)
     
     def _organize_by_category(self, items: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
@@ -175,7 +239,7 @@ class DigestGenerator:
     
     def generate_text_digest(self, items: List[Dict[str, Any]], max_items_per_category: int = 10) -> str:
         """
-        Generate a plain text email digest from content items.
+        Generate a plain text email digest from content items with Q-relevance prioritization.
         
         Args:
             items (list): List of content items.
@@ -186,12 +250,32 @@ class DigestGenerator:
         """
         logger.info(f"Generating text digest from {len(items)} items")
         
-        # Organize items by category
-        content_by_category = self._organize_by_category(items)
+        # Score and filter items
+        for item in items:
+            item['relevance_score'] = self._get_item_relevance_score(item)
         
-        # Limit items per category
-        for category in content_by_category:
-            content_by_category[category] = content_by_category[category][:max_items_per_category]
+        # Separate Q-related and general content
+        q_related_items = [item for item in items if item['relevance_score'] >= 30]
+        general_items = [item for item in items if item['relevance_score'] < 30]
+        
+        # Find competitor-related items
+        competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
+        competitor_items = []
+        for item in items:
+            title = item.get('title', '').lower()
+            summary = item.get('summary', '').lower()
+            content = title + ' ' + summary
+            for keyword in competitor_keywords:
+                if keyword in content:
+                    competitor_items.append(item)
+                    break
+        
+        # Sort by relevance score (highest first)
+        q_related_items.sort(key=lambda x: x['relevance_score'], reverse=True)
+        competitor_items.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        # Organize general items by category
+        general_by_category = self._organize_by_category(general_items)
         
         # Build text email
         text = []
@@ -200,12 +284,28 @@ class DigestGenerator:
         text.append("=" * 60)
         text.append("")
         
-        # Content by category
-        for category, cat_items in content_by_category.items():
-            text.append(f"{category.upper()}")
+        # Amazon Q Related Content Section
+        if q_related_items:
+            text.append("AMAZON Q & CODING ASSISTANT HIGHLIGHTS")
             text.append("-" * 40)
             
-            for item in cat_items:
+            for item in q_related_items[:max_items_per_category]:
+                text.append(f"* {item['title']} [Relevance: {item['relevance_score']}]")
+                text.append(f"  Source: {item['source']}")
+                text.append(f"  Published: {self._format_date(item['published'])}")
+                if item.get('author') and item['author'] != 'Unknown':
+                    text.append(f"  By: {item['author']}")
+                text.append(f"  Link: {item['link']}")
+                text.append("")
+            
+            text.append("")
+        
+        # Competitive Awareness Section
+        if competitor_items:
+            text.append("COMPETITIVE AWARENESS")
+            text.append("-" * 40)
+            
+            for item in competitor_items[:max_items_per_category]:
                 text.append(f"* {item['title']}")
                 text.append(f"  Source: {item['source']}")
                 text.append(f"  Published: {self._format_date(item['published'])}")
@@ -215,6 +315,22 @@ class DigestGenerator:
                 text.append("")
             
             text.append("")
+        
+        # General Content by Category
+        if general_by_category:
+            text.append("GENERAL INDUSTRY NEWS")
+            text.append("-" * 40)
+            
+            for category, cat_items in general_by_category.items():
+                text.append(f"{category.upper()}")
+                
+                for item in cat_items[:max_items_per_category // 2]:  # Show fewer general items
+                    text.append(f"* {item['title']}")
+                    text.append(f"  Source: {item['source']}")
+                    text.append(f"  Link: {item['link']}")
+                    text.append("")
+                
+                text.append("")
         
         text.append("=" * 60)
         text.append("This digest was generated by Content Aggregator.")
