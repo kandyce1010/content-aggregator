@@ -1,94 +1,86 @@
 # Content Aggregator Implementation Plan
 
-This document outlines a step-by-step approach to building the content aggregator, starting with the simplest possible implementation and gradually adding features.
+This document outlines a step-by-step approach to building the content aggregator, focusing on an email digest delivery system using AWS services.
 
 ## Phase 1: Minimal Viable Product (MVP)
 
-### Step 1: Basic Project Setup
+### Step 1: Basic Project Setup ✅
 - Set up project structure
 - Create virtual environment
 - Install essential dependencies
 - Set up configuration files
 
-### Step 2: Simple RSS Feed Reader
+### Step 2: Content Fetchers ✅
 - Implement basic RSS parser using feedparser
-- Start with 2-3 RSS feeds
-- Store fetched content in a simple JSON file
+- Configure initial RSS feeds
+- Store fetched content in JSON files
 - Create a basic command-line interface to display fetched content
 
-### Step 3: Simple Web Interface
-- Set up a basic Flask web application
-- Create a simple HTML template to display RSS content
-- Implement basic filtering by source
-- Deploy locally for testing
+### Step 3: Email Digest Generation
+- Design HTML email template
+- Create digest formatter that organizes content by source/category
+- Implement content summarization
+- Add clickable links and proper formatting for email clients
 
-## Phase 2: Core Platform Expansion
+## Phase 2: AWS Integration
 
-### Step 4: Database Integration
-- Set up SQLite database with SQLAlchemy
-- Define data models for content items
-- Migrate from JSON storage to database
-- Implement basic CRUD operations
+### Step 4: Additional Content Sources
+- Implement YouTube content fetcher using YouTube Data API
+- Implement LinkedIn content fetcher
+- Implement GitHub repository activity fetcher
+- Create a unified content aggregator that combines all sources
 
-### Step 5: YouTube Integration
-- Set up YouTube Data API client
-- Implement fetching from YouTube channels
-- Store YouTube content in the database
-- Update web interface to display YouTube content
+### Step 5: AWS SNS Setup
+- Create SNS topic for email delivery
+- Configure email subscription(s)
+- Implement SNS publishing from the content aggregator
+- Add error handling and delivery confirmation
 
-### Step 6: Scheduled Updates
-- Implement background job scheduler using APScheduler
-- Configure periodic content fetching
-- Add logging for fetch operations
-- Implement basic error handling and retries
+### Step 6: Scheduled Execution with EventBridge
+- Create EventBridge rule for daily 8am execution
+- Configure target to trigger content aggregation and email sending
+- Implement logging and monitoring
+- Set up error notifications
 
 ## Phase 3: Advanced Features
 
-### Step 7: LinkedIn Integration
-- Implement web scraping for LinkedIn profiles
-- Handle authentication and session management
-- Extract posts and updates from profiles
-- Add LinkedIn content to the database and web interface
+### Step 7: Google Search Alert Integration
+- Research Gmail API or email forwarding options
+- Implement Google Alert content extraction
+- Integrate alerts with the main content digest
+- Ensure proper formatting and attribution
 
-### Step 8: GitHub Repository Monitoring
-- Implement GitHub API integration
-- Monitor specific repositories for:
-  - New releases
-  - Issues and pull requests
-  - README and documentation updates
-- Store GitHub activity in the database
-- Display repository updates in the web interface
+### Step 8: Content Storage and Management
+- Implement DynamoDB for persistent content storage
+- Add tracking of sent content to avoid duplicates
+- Implement content aging and archiving
+- Add user preferences for content filtering
 
-### Step 9: Search-based Content Fetching
-- Implement Medium search integration
-- Implement Dev.to search integration
-- Create unified search interface for all platforms
-- Store search queries in configuration
-
-### Step 9: Content Categorization
+### Step 9: Content Categorization and Personalization
 - Implement basic keyword-based categorization
-- Add category filtering to the web interface
-- Implement read/unread status tracking
-- Add sorting options (date, popularity)
+- Add content relevance scoring
+- Implement user preference learning
+- Create customized digest sections based on reading habits
 
-## Phase 4: Polish and Optimization
+## Phase 4: Deployment and Optimization
 
-### Step 10: Email Digest
-- Create email template for content digest
-- Implement scheduled email sending
-- Add customization options for digest frequency and content
+### Step 10: Deployment to AWS
+- Package application for AWS Lambda deployment
+- Set up CloudWatch monitoring and alerts
+- Implement backup and recovery procedures
+- Create operational dashboard
 
-### Step 11: User Experience Improvements
-- Enhance web interface with responsive design
-- Implement content preview
-- Add search functionality within aggregated content
-- Implement content bookmarking
+### Step 11: Performance Optimization
+- Implement caching strategies
+- Optimize content fetching and processing
+- Add parallel processing for multiple sources
+- Implement rate limiting and throttling
 
-### Step 12: Deployment and Monitoring
-- Prepare for production deployment
-- Set up monitoring and error reporting
-- Implement backup strategy
-- Document deployment process
+### Step 12: Security and Compliance
+- Implement secure credential management
+- Add input validation and sanitization
+- Set up proper IAM roles and permissions
+- Implement data retention policies
 
 ## Development Approach
 
@@ -100,22 +92,23 @@ For each step:
 4. **Document**: Update documentation with new features and usage instructions
 5. **Review**: Assess what worked well and what could be improved
 
-## Initial Focus: Web App Deployment
+## AWS Services to Utilize
 
-For the initial deployment, we'll focus on:
+- **Amazon SNS**: For email delivery
+- **Amazon EventBridge**: For scheduled execution
+- **AWS Lambda**: For serverless execution of content aggregation and email generation
+- **Amazon DynamoDB**: For content storage and tracking
+- **Amazon CloudWatch**: For monitoring and logging
+- **AWS IAM**: For security and access control
+- **Amazon S3**: For storing templates and configuration
 
-1. Setting up the basic project structure
-2. Implementing the RSS feed reader
-3. Creating a simple web interface
-4. Deploying the web application locally
+## Initial Focus: Email Digest MVP
 
-This approach allows us to have a working application quickly while establishing the foundation for more advanced features.
+For the initial implementation, we'll focus on:
 
-## Technology Choices for Initial Deployment
+1. Completing the content fetchers for all sources
+2. Creating a basic email digest template
+3. Setting up SNS for email delivery
+4. Configuring EventBridge for scheduled execution
 
-- **Backend**: Python with Flask (lightweight, easy to set up)
-- **Data Storage**: JSON files initially (simplest approach)
-- **Frontend**: Basic HTML/CSS with minimal JavaScript
-- **Deployment**: Local development server
-
-Once the basic application is working, we can incrementally add more complex features and technologies.
+This approach allows us to quickly deliver a working email digest while establishing the foundation for more advanced features.
