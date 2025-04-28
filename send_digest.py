@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--region', default='us-east-1', help='AWS region')
     parser.add_argument('--profile', help='AWS profile name')
     parser.add_argument('--save-only', action='store_true', help='Generate digest but do not send email')
+    parser.add_argument('--format', choices=['html', 'text'], default='text', help='Email format (html or text)')
     
     args = parser.parse_args()
     
@@ -56,26 +57,38 @@ def main():
         # Step 2: Generate email digest
         logger.info("Generating email digest...")
         generator = DigestGenerator()
-        html_content = generator.generate_digest(items, max_items_per_category=args.max_items)
         
-        # Save the digest to a file
+        # Generate both HTML and text versions
+        html_content = generator.generate_digest(items, max_items_per_category=args.max_items)
+        text_content = generator.generate_text_digest(items, max_items_per_category=args.max_items)
+        
+        # Save the HTML version for reference
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
         Path(data_dir).mkdir(parents=True, exist_ok=True)
-        digest_path = os.path.join(data_dir, f'digest_{timestamp}.html')
         
-        with open(digest_path, 'w', encoding='utf-8') as f:
+        html_path = os.path.join(data_dir, f'digest_{timestamp}.html')
+        with open(html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        logger.info(f"Saved digest to {digest_path}")
+        # Also save the text version
+        text_path = os.path.join(data_dir, f'digest_{timestamp}.txt')
+        with open(text_path, 'w', encoding='utf-8') as f:
+            f.write(text_content)
+        
+        logger.info(f"Saved HTML digest to {html_path}")
+        logger.info(f"Saved text digest to {text_path}")
         
         # Step 3: Send email (if not save-only)
         if not args.save_only:
             logger.info(f"Sending email digest to {args.email}...")
             sender = EmailSender(region_name=args.region, profile_name=args.profile)
             
-            # Use the new send_digest method instead of send_direct_email
-            response = sender.send_digest(args.email, args.subject, html_content)
+            # Use the format specified by the user (default to text for better compatibility)
+            content_to_send = text_content if args.format == 'text' else html_content
+            
+            # Use the new send_digest method
+            response = sender.send_digest(args.email, args.subject, content_to_send)
             
             if response.get('Status') == 'Subscription email sent' or response.get('Status') == 'Please confirm your subscription':
                 logger.info("Subscription email sent. Please check your inbox and confirm the subscription before receiving digests.")
