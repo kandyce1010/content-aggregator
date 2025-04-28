@@ -1,0 +1,13 @@
+{
+  "region": "us-east-1",
+  "profile": "default",
+  "sns": {
+    "topic_name": "content-aggregator-digest",
+    "email_subject": "Your Daily Content Digest"
+  },
+  "eventbridge": {
+    "rule_name": "content-aggregator-daily-digest",
+    "schedule_expression": "cron(0 8 * * ? *)",
+    "description": "Trigger daily content digest at 8:00 AM"
+  }
+}
