@@ -91,6 +91,24 @@ class DigestGenerator:
         
         return truncated_text
     
+    def _clean_html(self, text: str) -> str:
+        """
+        Clean HTML content for email compatibility.
+        
+        Args:
+            text (str): HTML text to clean.
+            
+        Returns:
+            str: Cleaned HTML text.
+        """
+        # Basic HTML cleaning for email compatibility
+        # Remove potentially problematic tags or attributes
+        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL)
+        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
+        text = re.sub(r'<iframe[^>]*>.*?</iframe>', '', text, flags=re.DOTALL)
+        
+        return text
+        
     def _is_q_related(self, item: Dict[str, Any]) -> bool:
         """
         Determine if an item is related to Amazon Q or coding assistants.
