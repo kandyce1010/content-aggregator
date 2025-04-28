@@ -101,11 +101,24 @@ class EmailSender:
             dict: Response from SNS publish API.
         """
         try:
-            # Create the message structure for SNS
+            # Create the message structure for SNS with proper HTML formatting
             message = {
-                'default': f"Your daily content digest is ready.",
-                'email': html_content
+                'default': "Your daily content digest is ready.",
+                'email': html_content,
+                'email-json': json.dumps({
+                    'subject': subject,
+                    'body': {
+                        'html': html_content
+                    }
+                })
             }
+            
+            # Set topic attributes for HTML email
+            self.sns.set_topic_attributes(
+                TopicArn=topic_arn,
+                AttributeName='DisplayName',
+                AttributeValue='Content Aggregator'
+            )
             
             # Publish the message to the topic
             response = self.sns.publish(
@@ -151,6 +164,13 @@ class EmailSender:
                 create_response = self.sns.create_topic(Name=topic_name)
                 topic_arn = create_response['TopicArn']
                 logger.info(f"Created new SNS topic: {topic_arn}")
+                
+                # Set topic attributes for HTML email
+                self.sns.set_topic_attributes(
+                    TopicArn=topic_arn,
+                    AttributeName='DisplayName',
+                    AttributeValue='Content Aggregator'
+                )
             else:
                 logger.info(f"Using existing SNS topic: {topic_arn}")
             
@@ -183,10 +203,15 @@ class EmailSender:
             if is_subscribed and not is_confirmed:
                 return {"MessageId": "Pending subscription confirmation", "Status": "Please confirm your subscription"}
             
-            # Send the digest
+            # Send the digest with proper HTML formatting
             message = {
-                'default': f"Your daily content digest is ready.",
-                'email': html_content
+                'default': "Your daily content digest is ready.",
+                'email-json': json.dumps({
+                    'subject': subject,
+                    'body': {
+                        'html': html_content
+                    }
+                })
             }
             
             response = self.sns.publish(
@@ -223,6 +248,13 @@ class EmailSender:
             # Create a temporary topic
             temp_topic_name = f"temp-digest-{os.urandom(8).hex()}"
             topic_arn = self.create_topic(temp_topic_name)
+            
+            # Set topic attributes for HTML email
+            self.sns.set_topic_attributes(
+                TopicArn=topic_arn,
+                AttributeName='DisplayName',
+                AttributeValue='Content Aggregator'
+            )
             
             # Subscribe the email address
             self.subscribe_email(topic_arn, email_address)
