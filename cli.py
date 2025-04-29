@@ -155,6 +155,56 @@ def fetch_and_display_linkedin(args):
         print(f"\nSaved {len(items)} items to {file_path}")
 
 
+def fetch_and_display_github(args):
+    """
+    Fetch GitHub repository activity and display it according to command line arguments.
+    
+    Args:
+        args: Command line arguments
+    """
+    from backend.fetchers.github_fetcher import GitHubFetcher
+    
+    fetcher = GitHubFetcher(token=args.token)
+    print(f"Fetching GitHub repository activity...")
+    items = fetcher.fetch_all_repositories()
+    
+    if not items:
+        print("No items found.")
+        return
+    
+    # Filter by category if specified
+    if args.category:
+        items = [item for item in items if item['category'] == args.category]
+        if not items:
+            print(f"No items found in category '{args.category}'.")
+            return
+    
+    # Sort items by date (newest first)
+    items.sort(key=lambda x: x['published'], reverse=True)
+    
+    # Limit number of items if specified
+    if args.limit and args.limit > 0:
+        items = items[:args.limit]
+    
+    print(f"\nDisplaying {len(items)} items:")
+    
+    for i, item in enumerate(items, 1):
+        display_item(item, i, args.verbose)
+    
+    # Save to file if requested
+    if args.save:
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'github_activities_{timestamp}.json'
+        file_path = os.path.join(data_dir, filename)
+        
+        with open(file_path, 'w') as f:
+            json.dump(items, f, indent=2)
+        print(f"\nSaved {len(items)} items to {file_path}")
+
+
 def list_categories(args):
     """
     List all available categories from the configuration.
@@ -198,6 +248,14 @@ def main():
     linkedin_parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed information')
     linkedin_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
     
+    # GitHub command
+    github_parser = subparsers.add_parser('github', help='Fetch and display GitHub repository activity')
+    github_parser.add_argument('-c', '--category', help='Filter by category')
+    github_parser.add_argument('-l', '--limit', type=int, help='Limit number of items')
+    github_parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed information')
+    github_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
+    github_parser.add_argument('-t', '--token', help='GitHub personal access token')
+    
     # Categories command
     categories_parser = subparsers.add_parser('categories', help='List available categories')
     
@@ -207,6 +265,8 @@ def main():
         fetch_and_display_rss(args)
     elif args.command == 'linkedin':
         fetch_and_display_linkedin(args)
+    elif args.command == 'github':
+        fetch_and_display_github(args)
     elif args.command == 'categories':
         list_categories(args)
     else:
