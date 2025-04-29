@@ -17,7 +17,9 @@ build/
 *.egg-info/
 
 # Data files
-data/*.json
+data/
+# Keep the README.md file in the data directory
+!data/README.md
 
 # IDE specific files
 .idea/
