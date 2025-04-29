@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for Content Aggregator with EventBridge scheduling'
+
+Parameters:
+  RecipientEmail:
+    Type: String
+    Description: Email address to receive the content digest
+    
+  ScheduleExpression:
+    Type: String
+    Default: cron(0 8 * * ? *)
+    Description: Schedule expression for the EventBridge rule (cron or rate)
+    
+  DaysToInclude:
+    Type: Number
+    Default: 7
+    Description: Number of days of content to include in the digest
+    
+  MaxItemsPerCategory:
+    Type: Number
+    Default: 10
+    Description: Maximum number of items to include per category
+    
+  LambdaMemorySize:
+    Type: Number
+    Default: 512
+    Description: Memory size for the Lambda function (MB)
+    
+  LambdaTimeout:
+    Type: Number
+    Default: 300
+    Description: Timeout for the Lambda function (seconds)
+
+Resources:
+  ContentAggregatorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ContentAggregatorSNSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - sns:CreateTopic
+                  - sns:Subscribe
+                  - sns:ListTopics
+                  - sns:ListSubscriptionsByTopic
+                  - sns:SetTopicAttributes
+                Resource: '*'
+
+  ContentAggregatorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: content-aggregator
+      Handler: aws.lambda_function.lambda_handler
+      Role: !GetAtt ContentAggregatorLambdaRole.Arn
+      Code:
+        S3Bucket: YOUR_S3_BUCKET_NAME  # Replace with your S3 bucket name
+        S3Key: content-aggregator.zip   # Replace with your deployment package path
+      Runtime: python3.9
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          DAYS: !Ref DaysToInclude
+          MAX_ITEMS: !Ref MaxItemsPerCategory
+
+  ContentAggregatorEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: content-aggregator-daily
+      Description: 'EventBridge rule to trigger Content Aggregator on a schedule'
+      ScheduleExpression: !Ref ScheduleExpression
+      State: ENABLED
+      Targets:
+        - Id: ContentAggregatorLambdaTarget
+          Arn: !GetAtt ContentAggregatorLambda.Arn
+          Input: !Sub |
+            {
+              "params": {
+                "email": "${RecipientEmail}",
+                "days": "${DaysToInclude}",
+                "max_items": "${MaxItemsPerCategory}"
+              }
+            }
+
+  ContentAggregatorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ContentAggregatorLambda
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ContentAggregatorEventRule.Arn
+
+Outputs:
+  LambdaFunctionArn:
+    Description: ARN of the Content Aggregator Lambda function
+    Value: !GetAtt ContentAggregatorLambda.Arn
+    
+  EventRuleArn:
+    Description: ARN of the EventBridge rule
+    Value: !GetAtt ContentAggregatorEventRule.Arn
+    
+  LambdaRoleArn:
+    Description: ARN of the Lambda execution role
+    Value: !GetAtt ContentAggregatorLambdaRole.Arn
