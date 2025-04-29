@@ -23,6 +23,58 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def calculate_relevance_score(item):
+    """
+    Calculate a relevance score for an item based on Q-related keywords.
+    Higher score means more relevant to Amazon Q.
+    
+    Args:
+        item (dict): Content item to score
+        
+    Returns:
+        int: Relevance score (0-100)
+    """
+    primary_keywords = ['amazon q', 'q developer', 'codewhisperer']
+    secondary_keywords = ['coding assistant', 'ai pair programming', 'code generation']
+    tertiary_keywords = ['generative ai', 'llm', 'large language model', 'ai coding']
+    competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
+    
+    score = 0
+    title = item.get('title', '').lower()
+    summary = item.get('summary', '').lower()
+    content = title + ' ' + summary
+    
+    # Primary keywords (Amazon Q specific)
+    for keyword in primary_keywords:
+        if keyword in title:
+            score += 50
+        elif keyword in summary:
+            score += 30
+    
+    # Secondary keywords (coding assistant specific)
+    for keyword in secondary_keywords:
+        if keyword in title:
+            score += 30
+        elif keyword in summary:
+            score += 20
+    
+    # Tertiary keywords (general AI/ML)
+    for keyword in tertiary_keywords:
+        if keyword in title:
+            score += 15
+        elif keyword in summary:
+            score += 10
+    
+    # Competitor keywords
+    for keyword in competitor_keywords:
+        if keyword in title:
+            score += 25
+        elif keyword in summary:
+            score += 15
+    
+    # Cap the score at 100
+    return min(score, 100)
+
 def main():
     """
     Main function to aggregate content, generate digest, and send email.
@@ -37,15 +89,22 @@ def main():
     parser.add_argument('--region', default='us-east-1', help='AWS region')
     parser.add_argument('--profile', help='AWS profile name')
     parser.add_argument('--save-only', action='store_true', help='Save digest without sending email')
-    parser.add_argument('--text-digest', action='store_true', help='Generate plain text digest')
     
     args = parser.parse_args()
     
     try:
-        # Step 1: Aggregate content from all sources
+        # Step 1: Aggregate content from all sources (excluding LinkedIn)
         logger.info("Aggregating content from all sources")
         aggregator = ContentAggregator(github_token=args.github_token)
-        all_content = aggregator.fetch_all_content(parallel=True)
+        
+        # Fetch RSS content
+        rss_content = aggregator.fetch_rss_content()
+        
+        # Fetch GitHub content
+        github_content = aggregator.fetch_github_content()
+        
+        # Combine content (excluding LinkedIn)
+        all_content = rss_content + github_content
         
         # Filter by category if specified
         if args.category:
@@ -56,24 +115,119 @@ def main():
         all_content = aggregator.filter_content_by_date(all_content, args.days)
         logger.info(f"Filtered to {len(all_content)} items from the last {args.days} days")
         
+        # Calculate relevance scores
+        for item in all_content:
+            item['relevance_score'] = calculate_relevance_score(item)
+        
         # Save aggregated content
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         aggregator.save_content(all_content, f'aggregated_content_{timestamp}.json')
         
-        # Step 2: Generate email digest
-        logger.info("Generating email digest")
-        generator = DigestGenerator()
+        # Step 2: Generate plain text digest
+        logger.info("Generating plain text digest")
         
-        if args.text_digest:
-            digest_content = generator.generate_text_digest(all_content, args.max_items)
-            digest_path = os.path.join(aggregator.data_dir, f'digest_{timestamp}.txt')
-            with open(digest_path, 'w', encoding='utf-8') as f:
-                f.write(digest_content)
-            logger.info(f"Saved text digest to {digest_path}")
-        else:
-            digest_content = generator.generate_digest(all_content, args.max_items)
-            digest_path = generator.save_digest(digest_content, 
-                                              os.path.join(aggregator.data_dir, f'digest_{timestamp}.html'))
+        # Separate Q-related and general content
+        q_related_items = [item for item in all_content if item['relevance_score'] >= 30]
+        general_items = [item for item in all_content if item['relevance_score'] < 30]
+        
+        # Find competitor-related items
+        competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
+        competitor_items = []
+        for item in all_content:
+            title = item.get('title', '').lower()
+            summary = item.get('summary', '').lower()
+            content = title + ' ' + summary
+            for keyword in competitor_keywords:
+                if keyword in content:
+                    competitor_items.append(item)
+                    break
+        
+        # Sort by relevance score (highest first)
+        q_related_items.sort(key=lambda x: x['relevance_score'], reverse=True)
+        competitor_items.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        # Organize general items by category
+        content_by_category = {}
+        for item in general_items:
+            category = item.get('category', 'uncategorized')
+            if category not in content_by_category:
+                content_by_category[category] = []
+            content_by_category[category].append(item)
+        
+        # Sort items within each category by published date (newest first)
+        for category in content_by_category:
+            content_by_category[category].sort(
+                key=lambda x: x.get('published', ''), 
+                reverse=True
+            )
+            # Limit items per category
+            content_by_category[category] = content_by_category[category][:args.max_items]
+        
+        # Build plain text digest
+        text_lines = []
+        text_lines.append("YOUR DAILY CONTENT DIGEST")
+        text_lines.append(datetime.now().strftime('%A, %B %d, %Y'))
+        text_lines.append("=" * 60)
+        text_lines.append("")
+        
+        # Amazon Q Related Content Section
+        if q_related_items:
+            text_lines.append("AMAZON Q & CODING ASSISTANT HIGHLIGHTS")
+            text_lines.append("-" * 40)
+            
+            for item in q_related_items[:args.max_items]:
+                text_lines.append(f"* {item['title']} [Relevance: {item['relevance_score']}]")
+                text_lines.append(f"  Source: {item['source']}")
+                if item.get('author') and item['author'] != 'Unknown':
+                    text_lines.append(f"  By: {item['author']}")
+                text_lines.append(f"  Link: {item['link']}")
+                text_lines.append("")
+            
+            text_lines.append("")
+        
+        # Competitive Awareness Section
+        if competitor_items:
+            text_lines.append("COMPETITIVE AWARENESS")
+            text_lines.append("-" * 40)
+            
+            for item in competitor_items[:args.max_items]:
+                text_lines.append(f"* {item['title']} [Relevance: {item['relevance_score']}]")
+                text_lines.append(f"  Source: {item['source']}")
+                if item.get('author') and item['author'] != 'Unknown':
+                    text_lines.append(f"  By: {item['author']}")
+                text_lines.append(f"  Link: {item['link']}")
+                text_lines.append("")
+            
+            text_lines.append("")
+        
+        # General Content by Category
+        if content_by_category:
+            text_lines.append("GENERAL INDUSTRY NEWS")
+            text_lines.append("-" * 40)
+            
+            for category, items in sorted(content_by_category.items()):
+                text_lines.append(f"{category.upper()}")
+                
+                for item in items[:args.max_items // 2]:  # Show fewer general items
+                    text_lines.append(f"* {item['title']}")
+                    text_lines.append(f"  Source: {item['source']}")
+                    if item.get('author') and item['author'] != 'Unknown':
+                        text_lines.append(f"  By: {item['author']}")
+                    text_lines.append(f"  Link: {item['link']}")
+                    text_lines.append("")
+                
+                text_lines.append("")
+        
+        text_lines.append("=" * 60)
+        text_lines.append("This digest was generated by Content Aggregator.")
+        
+        digest_content = "\n".join(text_lines)
+        
+        # Save digest to file
+        digest_path = os.path.join(aggregator.data_dir, f'digest_{timestamp}.txt')
+        with open(digest_path, 'w', encoding='utf-8') as f:
+            f.write(digest_content)
+        logger.info(f"Saved text digest to {digest_path}")
         
         # Step 3: Send email (if not save-only)
         if not args.save_only:
