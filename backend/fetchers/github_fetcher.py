@@ -1,221 +1,418 @@
+#!/usr/bin/env python3
 """
-GitHub repository fetcher module.
+GitHub Fetcher Module
 
-This module handles fetching content from GitHub repositories including:
-- New releases
-- Recent issues and pull requests
-- README and documentation updates
+This module handles fetching activity from GitHub repositories.
+It uses the GitHub REST API to extract releases, issues, pull requests, and commits.
 """
 
-import requests
+import os
+import json
 import logging
 from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+import requests
+from pathlib import Path
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class GitHubFetcher:
-    def __init__(self, token=None):
+    """
+    A class to fetch activity from GitHub repositories.
+    """
+    
+    def __init__(self, config_path=None, token=None):
         """
-        Initialize GitHub fetcher.
+        Initialize the GitHub fetcher with configuration.
         
         Args:
-            token (str, optional): GitHub API token for authenticated requests
-                                  (increases rate limits and allows access to private repos)
+            config_path (str, optional): Path to the configuration file.
+                Defaults to '../config/sources.json'.
+            token (str, optional): GitHub personal access token.
+                If not provided, will use unauthenticated requests (rate limited).
         """
-        self.base_url = "https://api.github.com"
+        if config_path is None:
+            # Get the directory of the current file
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            # Navigate to the config directory
+            config_path = os.path.join(current_dir, '..', '..', 'config', 'sources.json')
+        
+        self.config_path = config_path
+        self.repositories = self._load_repository_config()
+        self.token = token
+        
+        # Create data directory if it doesn't exist
+        self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                                     '..', '..', 'data')
+        Path(self.data_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Set up headers for GitHub API requests
         self.headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Content-Aggregator-App"
+            'Accept': 'application/vnd.github.v3+json'
         }
         
-        # Add token if provided
-        if token:
-            self.headers["Authorization"] = f"token {token}"
+        if self.token:
+            self.headers['Authorization'] = f'token {self.token}'
     
-    def fetch_repository_info(self, owner, repo):
+    def _load_repository_config(self):
         """
-        Fetch basic information about a repository.
+        Load GitHub repository configuration from the config file.
         
-        Args:
-            owner (str): Repository owner/organization
-            repo (str): Repository name
-            
         Returns:
-            dict: Repository information
+            list: List of GitHub repository configurations.
         """
         try:
-            url = f"{self.base_url}/repos/{owner}/{repo}"
-            response = requests.get(url, headers=self.headers)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Error fetching repository info for {owner}/{repo}: {str(e)}")
-            return None
-    
-    def fetch_releases(self, owner, repo, limit=5):
-        """
-        Fetch recent releases for a repository.
-        
-        Args:
-            owner (str): Repository owner/organization
-            repo (str): Repository name
-            limit (int): Maximum number of releases to fetch
-            
-        Returns:
-            list: List of release dictionaries
-        """
-        try:
-            url = f"{self.base_url}/repos/{owner}/{repo}/releases"
-            response = requests.get(url, headers=self.headers, params={"per_page": limit})
-            response.raise_for_status()
-            
-            releases = response.json()
-            processed_releases = []
-            
-            for release in releases:
-                processed_release = {
-                    'id': release['id'],
-                    'title': release['name'] or f"Release {release['tag_name']}",
-                    'tag': release['tag_name'],
-                    'body': release['body'],
-                    'url': release['html_url'],
-                    'published_at': release['published_at'],
-                    'source': 'github',
-                    'source_type': 'release',
-                    'repo': f"{owner}/{repo}"
-                }
-                processed_releases.append(processed_release)
-                
-            return processed_releases
-            
-        except Exception as e:
-            logger.error(f"Error fetching releases for {owner}/{repo}: {str(e)}")
+            with open(self.config_path, 'r') as f:
+                config = json.load(f)
+                return config.get('github_repositories', [])
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.error(f"Error loading configuration: {e}")
             return []
     
-    def fetch_issues(self, owner, repo, limit=10, days=7):
+    def fetch_repository(self, repo_config):
         """
-        Fetch recent issues for a repository.
+        Fetch activity from a GitHub repository.
         
         Args:
-            owner (str): Repository owner/organization
-            repo (str): Repository name
-            limit (int): Maximum number of issues to fetch
-            days (int): Only fetch issues from the last X days
+            repo_config (dict): Configuration for the repository to fetch.
+        
+        Returns:
+            list: List of dictionaries containing repository activity.
+        """
+        repo_name = repo_config['name']
+        repo_url = repo_config['url']
+        category = repo_config.get('category', 'github')
+        
+        # Extract owner and repo from URL
+        # URL format: https://github.com/owner/repo
+        parts = repo_url.rstrip('/').split('/')
+        owner = parts[-2]
+        repo = parts[-1]
+        
+        logger.info(f"Fetching GitHub repository: {owner}/{repo}")
+        
+        activities = []
+        
+        # Fetch releases
+        activities.extend(self._fetch_releases(owner, repo, repo_name, category))
+        
+        # Fetch pull requests
+        activities.extend(self._fetch_pull_requests(owner, repo, repo_name, category))
+        
+        # Sort by date (newest first)
+        activities.sort(key=lambda x: x['published'], reverse=True)
+        
+        logger.info(f"Successfully fetched {len(activities)} activities from {repo_name}")
+        return activities
+    
+    def _fetch_releases(self, owner, repo, repo_name, category):
+        """
+        Fetch releases from a GitHub repository.
+        
+        Args:
+            owner (str): Repository owner.
+            repo (str): Repository name.
+            repo_name (str): Display name for the repository.
+            category (str): Category for the content.
             
         Returns:
-            list: List of issue dictionaries
+            list: List of release activities.
         """
+        url = f"https://api.github.com/repos/{owner}/{repo}/releases"
+        
         try:
-            # Calculate date for filtering
-            since_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            response = requests.get(url, headers=self.headers)
             
-            url = f"{self.base_url}/repos/{owner}/{repo}/issues"
-            params = {
-                "state": "all",
-                "sort": "created",
-                "direction": "desc",
-                "per_page": limit,
-                "since": since_date
-            }
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch releases for {owner}/{repo}: Status code {response.status_code}")
+                return []
             
-            response = requests.get(url, headers=self.headers, params=params)
-            response.raise_for_status()
+            releases = response.json()
+            activities = []
+            
+            for release in releases:
+                # Skip draft releases
+                if release.get('draft', False):
+                    continue
+                
+                published_at = release.get('published_at')
+                if not published_at:
+                    continue
+                
+                tag_name = release.get('tag_name', '')
+                name = release.get('name', tag_name)
+                
+                activity = {
+                    'id': f"github-release-{release['id']}",
+                    'title': f"Release {name}",
+                    'link': release['html_url'],
+                    'summary': release.get('body', ''),
+                    'published': published_at,
+                    'source': f"GitHub - {repo_name}",
+                    'category': category,
+                    'content_type': 'github_release',
+                    'author': release.get('author', {}).get('login', 'Unknown'),
+                    'fetched_at': datetime.now().isoformat()
+                }
+                
+                activities.append(activity)
+            
+            logger.info(f"Fetched {len(activities)} releases from {owner}/{repo}")
+            return activities
+            
+        except Exception as e:
+            logger.error(f"Error fetching releases for {owner}/{repo}: {e}")
+            return []
+    
+    def _fetch_pull_requests(self, owner, repo, repo_name, category):
+        """
+        Fetch recent pull requests from a GitHub repository.
+        
+        Args:
+            owner (str): Repository owner.
+            repo (str): Repository name.
+            repo_name (str): Display name for the repository.
+            category (str): Category for the content.
+            
+        Returns:
+            list: List of pull request activities.
+        """
+        # GitHub API doesn't have a direct 'since' filter for PRs, so we'll fetch recent ones and filter
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=all&sort=updated&direction=desc"
+        
+        try:
+            response = requests.get(url, headers=self.headers)
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch PRs for {owner}/{repo}: Status code {response.status_code}")
+                return []
+            
+            prs = response.json()
+            activities = []
+            
+            # Get PRs from the last 7 days
+            cutoff_date = datetime.now() - timedelta(days=7)
+            
+            for pr in prs:
+                updated_at = datetime.fromisoformat(pr['updated_at'].replace('Z', '+00:00'))
+                
+                # Skip PRs updated before the cutoff date
+                if updated_at < cutoff_date:
+                    continue
+                
+                created_at = pr.get('created_at')
+                if not created_at:
+                    continue
+                
+                # Determine PR status
+                status = "merged" if pr.get('merged_at') else pr.get('state', 'open')
+                
+                activity = {
+                    'id': f"github-pr-{pr['id']}",
+                    'title': f"PR: {pr['title']} ({status})",
+                    'link': pr['html_url'],
+                    'summary': pr.get('body', ''),
+                    'published': created_at,
+                    'source': f"GitHub - {repo_name}",
+                    'category': category,
+                    'content_type': 'github_pr',
+                    'author': pr.get('user', {}).get('login', 'Unknown'),
+                    'fetched_at': datetime.now().isoformat()
+                }
+                
+                activities.append(activity)
+            
+            logger.info(f"Fetched {len(activities)} pull requests from {owner}/{repo}")
+            return activities
+            
+        except Exception as e:
+            logger.error(f"Error fetching pull requests for {owner}/{repo}: {e}")
+            return []
+    
+    def _fetch_issues(self, owner, repo, repo_name, category):
+        """
+        Fetch recent issues from a GitHub repository.
+        
+        Args:
+            owner (str): Repository owner.
+            repo (str): Repository name.
+            repo_name (str): Display name for the repository.
+            category (str): Category for the content.
+            
+        Returns:
+            list: List of issue activities.
+        """
+        url = f"https://api.github.com/repos/{owner}/{repo}/issues?state=all&sort=updated&direction=desc"
+        
+        try:
+            response = requests.get(url, headers=self.headers)
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch issues for {owner}/{repo}: Status code {response.status_code}")
+                return []
             
             issues = response.json()
-            processed_issues = []
+            activities = []
+            
+            # Get issues from the last 7 days
+            cutoff_date = datetime.now() - timedelta(days=7)
             
             for issue in issues:
-                # Skip pull requests (they're also returned by the issues endpoint)
+                # Skip pull requests (they have a 'pull_request' key)
                 if 'pull_request' in issue:
                     continue
                     
-                processed_issue = {
-                    'id': issue['id'],
-                    'title': issue['title'],
-                    'body': issue['body'],
-                    'url': issue['html_url'],
-                    'state': issue['state'],
-                    'created_at': issue['created_at'],
-                    'updated_at': issue['updated_at'],
-                    'source': 'github',
-                    'source_type': 'issue',
-                    'repo': f"{owner}/{repo}"
-                }
-                processed_issues.append(processed_issue)
+                updated_at = datetime.fromisoformat(issue['updated_at'].replace('Z', '+00:00'))
                 
-            return processed_issues
+                # Skip issues updated before the cutoff date
+                if updated_at < cutoff_date:
+                    continue
+                
+                created_at = issue.get('created_at')
+                if not created_at:
+                    continue
+                
+                activity = {
+                    'id': f"github-issue-{issue['id']}",
+                    'title': f"Issue: {issue['title']} ({issue['state']})",
+                    'link': issue['html_url'],
+                    'summary': issue.get('body', ''),
+                    'published': created_at,
+                    'source': f"GitHub - {repo_name}",
+                    'category': category,
+                    'content_type': 'github_issue',
+                    'author': issue.get('user', {}).get('login', 'Unknown'),
+                    'fetched_at': datetime.now().isoformat()
+                }
+                
+                activities.append(activity)
+            
+            logger.info(f"Fetched {len(activities)} issues from {owner}/{repo}")
+            return activities
             
         except Exception as e:
-            logger.error(f"Error fetching issues for {owner}/{repo}: {str(e)}")
+            logger.error(f"Error fetching issues for {owner}/{repo}: {e}")
+            return []
+            
+    def _fetch_commits(self, owner, repo, repo_name, category):
+        """
+        Fetch recent commits from a GitHub repository.
+        
+        Args:
+            owner (str): Repository owner.
+            repo (str): Repository name.
+            repo_name (str): Display name for the repository.
+            category (str): Category for the content.
+            
+        Returns:
+            list: List of commit activities.
+        """
+        # Get commits from the last 3 days
+        since = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        url = f"https://api.github.com/repos/{owner}/{repo}/commits?since={since}"
+        
+        try:
+            response = requests.get(url, headers=self.headers)
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch commits for {owner}/{repo}: Status code {response.status_code}")
+                return []
+            
+            commits = response.json()
+            activities = []
+            
+            for commit in commits:
+                # Skip commits without author info
+                if not commit.get('commit', {}).get('author', {}).get('date'):
+                    continue
+                
+                commit_date = commit['commit']['author']['date']
+                commit_message = commit['commit']['message']
+                
+                # Get first line of commit message as title
+                title_line = commit_message.split('\n')[0]
+                
+                activity = {
+                    'id': f"github-commit-{commit['sha']}",
+                    'title': f"Commit: {title_line[:60]}{'...' if len(title_line) > 60 else ''}",
+                    'link': commit['html_url'],
+                    'summary': commit_message,
+                    'published': commit_date,
+                    'source': f"GitHub - {repo_name}",
+                    'category': category,
+                    'content_type': 'github_commit',
+                    'author': commit.get('author', {}).get('login', commit['commit']['author'].get('name', 'Unknown')),
+                    'fetched_at': datetime.now().isoformat()
+                }
+                
+                activities.append(activity)
+            
+            logger.info(f"Fetched {len(activities)} commits from {owner}/{repo}")
+            return activities
+            
+        except Exception as e:
+            logger.error(f"Error fetching commits for {owner}/{repo}: {e}")
             return []
     
-    def fetch_readme(self, owner, repo):
+    def fetch_all_repositories(self):
         """
-        Fetch README content for a repository.
+        Fetch activity from all configured GitHub repositories.
         
-        Args:
-            owner (str): Repository owner/organization
-            repo (str): Repository name
-            
         Returns:
-            dict: README information
+            list: List of dictionaries containing activities from all repositories.
         """
-        try:
-            url = f"{self.base_url}/repos/{owner}/{repo}/readme"
-            response = requests.get(url, headers=self.headers)
-            response.raise_for_status()
-            
-            readme = response.json()
-            
-            # Get the actual content
-            content_url = f"{self.base_url}/repos/{owner}/{repo}/contents/{readme['path']}"
-            content_response = requests.get(content_url, headers=self.headers)
-            content_response.raise_for_status()
-            content_data = content_response.json()
-            
-            processed_readme = {
-                'id': f"{owner}/{repo}/readme",
-                'title': f"README for {owner}/{repo}",
-                'content': content_data.get('content', ''),  # Base64 encoded content
-                'encoding': content_data.get('encoding', 'base64'),
-                'url': readme['html_url'],
-                'updated_at': content_data.get('last_modified', datetime.now().isoformat()),
-                'source': 'github',
-                'source_type': 'readme',
-                'repo': f"{owner}/{repo}"
-            }
-                
-            return processed_readme
-            
-        except Exception as e:
-            logger.error(f"Error fetching README for {owner}/{repo}: {str(e)}")
-            return None
+        all_activities = []
+        
+        for repo_config in self.repositories:
+            try:
+                repo_activities = self.fetch_repository(repo_config)
+                all_activities.extend(repo_activities)
+            except Exception as e:
+                logger.error(f"Error fetching repository {repo_config['name']}: {e}")
+        
+        return all_activities
     
-    def fetch_all_content(self, repo_config):
+    def save_to_json(self, activities, filename=None):
         """
-        Fetch all relevant content for a repository.
+        Save fetched activities to a JSON file.
         
         Args:
-            repo_config (dict): Repository configuration with owner and name
-            
+            activities (list): List of activities to save.
+            filename (str, optional): Name of the file to save to.
+                Defaults to 'github_activities_{timestamp}.json'.
+        
         Returns:
-            dict: All fetched content for the repository
+            str: Path to the saved file.
         """
-        owner = repo_config['owner']
-        repo = repo_config['name']
-        category = repo_config.get('category', 'github')
+        if filename is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'github_activities_{timestamp}.json'
         
-        logger.info(f"Fetching content for GitHub repository: {owner}/{repo}")
+        file_path = os.path.join(self.data_dir, filename)
         
-        repo_info = self.fetch_repository_info(owner, repo)
-        releases = self.fetch_releases(owner, repo)
-        issues = self.fetch_issues(owner, repo)
-        readme = self.fetch_readme(owner, repo)
-        
-        return {
-            'repo_info': repo_info,
-            'releases': releases,
-            'issues': issues,
-            'readme': readme,
-            'category': category
-        }
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(activities, f, indent=2)
+            logger.info(f"Saved {len(activities)} activities to {file_path}")
+            return file_path
+        except Exception as e:
+            logger.error(f"Error saving activities to {file_path}: {e}")
+            return None
+
+
+if __name__ == "__main__":
+    # Example usage when run directly
+    fetcher = GitHubFetcher()
+    activities = fetcher.fetch_all_repositories()
+    fetcher.save_to_json(activities)
+    
+    # Print summary of fetched activities
+    print(f"\nFetched {len(activities)} activities from {len(fetcher.repositories)} repositories:")
+    for repo in fetcher.repositories:
+        repo_activities = [a for a in activities if a['source'] == f"GitHub - {repo['name']}"]
+        print(f"  - {repo['name']}: {len(repo_activities)} activities")
