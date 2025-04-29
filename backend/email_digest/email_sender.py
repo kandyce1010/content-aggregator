@@ -101,31 +101,14 @@ class EmailSender:
             dict: Response from SNS publish API.
         """
         try:
-            # Create the message structure for SNS with proper HTML formatting
-            message = {
-                'default': "Your daily content digest is ready.",
-                'email': html_content,
-                'email-json': json.dumps({
-                    'subject': subject,
-                    'body': {
-                        'html': html_content
-                    }
-                })
-            }
-            
-            # Set topic attributes for HTML email
-            self.sns.set_topic_attributes(
-                TopicArn=topic_arn,
-                AttributeName='DisplayName',
-                AttributeValue='Content Aggregator'
-            )
+            # For SNS email protocol, we need to send the HTML content directly
+            # SNS will handle the email formatting
             
             # Publish the message to the topic
             response = self.sns.publish(
                 TopicArn=topic_arn,
-                Message=json.dumps(message),
-                Subject=subject,
-                MessageStructure='json'
+                Message=html_content,  # Send HTML content directly
+                Subject=subject
             )
             
             logger.info(f"Sent email digest via SNS: {response['MessageId']}")
@@ -165,7 +148,7 @@ class EmailSender:
                 topic_arn = create_response['TopicArn']
                 logger.info(f"Created new SNS topic: {topic_arn}")
                 
-                # Set topic attributes for HTML email
+                # Set topic attributes for better display name
                 self.sns.set_topic_attributes(
                     TopicArn=topic_arn,
                     AttributeName='DisplayName',
@@ -203,22 +186,11 @@ class EmailSender:
             if is_subscribed and not is_confirmed:
                 return {"MessageId": "Pending subscription confirmation", "Status": "Please confirm your subscription"}
             
-            # Send the digest with proper HTML formatting
-            message = {
-                'default': "Your daily content digest is ready.",
-                'email-json': json.dumps({
-                    'subject': subject,
-                    'body': {
-                        'html': html_content
-                    }
-                })
-            }
-            
+            # Send the digest with direct HTML content
             response = self.sns.publish(
                 TopicArn=topic_arn,
-                Message=json.dumps(message),
-                Subject=subject,
-                MessageStructure='json'
+                Message=html_content,  # Send HTML content directly
+                Subject=subject
             )
             
             logger.info(f"Digest sent via SNS: {response['MessageId']}")
@@ -249,7 +221,7 @@ class EmailSender:
             temp_topic_name = f"temp-digest-{os.urandom(8).hex()}"
             topic_arn = self.create_topic(temp_topic_name)
             
-            # Set topic attributes for HTML email
+            # Set topic attributes for better display name
             self.sns.set_topic_attributes(
                 TopicArn=topic_arn,
                 AttributeName='DisplayName',

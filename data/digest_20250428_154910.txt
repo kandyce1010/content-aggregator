@@ -1,0 +1,254 @@
+YOUR DAILY CONTENT DIGEST
+Monday, April 28, 2025
+============================================================
+
+CLOUD
+----------------------------------------
+* Writer Palmyra X5 and X4 foundation models are now available in Amazon Bedrock
+  Source: AWS Blog
+  Published: Apr 28, 2025
+  By: Danilo Poccia
+  Link: https://aws.amazon.com/blogs/aws/writer-palmyra-x5-and-x4-foundation-models-are-now-available-in-amazon-bedrock/
+
+* AWS Weekly Roundup: Amazon Q Developer, AWS Account Management updates, and more (April 28, 2025)
+  Source: AWS Blog
+  Published: Apr 28, 2025
+  By: Matheus Guimaraes
+  Link: https://aws.amazon.com/blogs/aws/aws-weekly-roundup-amazon-q-developer-aws-account-management-updates-and-more-april-28-2025/
+
+* In the works – New Availability Zone in Maryland for US East (Northern Virginia) Region
+  Source: AWS Blog
+  Published: Apr 24, 2025
+  By: Channy Yun (윤석찬)
+  Link: https://aws.amazon.com/blogs/aws/in-the-works-new-availability-zone-in-maryland-for-us-east-n-virginia-region/
+
+* Enhance real-time applications with AWS AppSync Events data source integrations
+  Source: AWS Blog
+  Published: Apr 24, 2025
+  By: Micah Walter
+  Link: https://aws.amazon.com/blogs/aws/enhance-real-time-applications-with-aws-appsync-events-data-source-integrations/
+
+* New Amazon EC2 Graviton4-based instances with NVMe SSD storage
+  Source: AWS Blog
+  Published: Apr 21, 2025
+  By: Micah Walter
+  Link: https://aws.amazon.com/blogs/aws/new-amazon-ec2-graviton4-based-instances-with-nvme-ssd-storage/
+
+* AWS Weekly Roundup: Upcoming AWS Summits, Amazon Q Developer, Amazon CloudFront updates, and more (April 21, 2025)
+  Source: AWS Blog
+  Published: Apr 21, 2025
+  By: Channy Yun (윤석찬)
+  Link: https://aws.amazon.com/blogs/aws/aws-weekly-roundup-upcoming-aws-summits-amazon-q-developer-amazon-cloudfront-updates-and-more-april-21-2025/
+
+* AWS Weekly Roundup: Amazon S3 Express One Zone price cuts, Pixtral Large on Amazon Bedrock, Amazon Nova Sonic, and more (April 14, 2025)
+  Source: AWS Blog
+  Published: Apr 14, 2025
+  By: Elizabeth Fuentes
+  Link: https://aws.amazon.com/blogs/aws/aws-weekly-review-amazon-s3-express-one-zone-price-cuts-pixtral-large-on-amazon-bedrock-amazon-nova-sonic-and-more-april-14-2025/
+
+* Announcing up to 85% price reductions for Amazon S3 Express One Zone
+  Source: AWS Blog
+  Published: Apr 10, 2025
+  By: Channy Yun (윤석찬)
+  Link: https://aws.amazon.com/blogs/aws/up-to-85-price-reductions-for-amazon-s3-express-one-zone/
+
+* AWS announces Pixtral Large 25.02 model in Amazon Bedrock serverless
+  Source: AWS Blog
+  Published: Apr 08, 2025
+  By: Sébastien Stormacq
+  Link: https://aws.amazon.com/blogs/aws/aws-announces-pixtral-large-25-02-model-in-amazon-bedrock-serverless/
+
+* Introducing Amazon Nova Sonic: Human-like voice conversations for generative AI applications
+  Source: AWS Blog
+  Published: Apr 08, 2025
+  By: Danilo Poccia
+  Link: https://aws.amazon.com/blogs/aws/introducing-amazon-nova-sonic-human-like-voice-conversations-for-generative-ai-applications/
+
+
+TECH_NEWS
+----------------------------------------
+* Mysterious financier asks judge to stop Canoo asset sale
+  Source: TechCrunch
+  Published: Apr 28, 2025
+  By: Sean O'Kane
+  Link: https://techcrunch.com/2025/04/28/mysterious-financier-asks-judge-to-stop-canoo-asset-sale/
+
+* Hugging Face releases a 3D-printed robotic arm starting at $100
+  Source: TechCrunch
+  Published: Apr 28, 2025
+  By: Kyle Wiggers
+  Link: https://techcrunch.com/2025/04/28/hugging-face-releases-a-3d-printed-robotic-arm-starting-at-100/
+
+* Huawei aims to take on Nvidia’s H100 with new AI chip
+  Source: TechCrunch
+  Published: Apr 28, 2025
+  By: Rebecca Szkutak
+  Link: https://techcrunch.com/2025/04/28/huawei-aims-to-take-on-nvidias-h100-with-new-ai-chip/
+
+* YouTube support affected by European power outages, too
+  Source: TechCrunch
+  Published: Apr 28, 2025
+  By: Sarah Perez
+  Link: https://techcrunch.com/2025/04/28/youtube-support-affected-by-european-power-outages-too/
+
+* OpenAI upgrades ChatGPT search with shopping features
+  Source: TechCrunch
+  Published: Apr 28, 2025
+  By: Maxwell Zeff
+  Link: https://techcrunch.com/2025/04/28/openai-upgrades-chatgpt-search-with-shopping-features/
+
+* Migrating away from Rust
+  Source: Hacker News
+  Published: Apr 28, 2025
+  Link: https://deadmoney.gg/news/articles/migrating-away-from-rust
+
+* Show HN: Heart Rate Zones Plus – The first iOS app I ever developed
+  Source: Hacker News
+  Published: Apr 28, 2025
+  Link: https://apps.apple.com/us/app/heart-rate-zones-plus/id6744743232
+
+* Reports of the death of California High-Speed Rail have been greatly exaggerated
+  Source: Hacker News
+  Published: Apr 28, 2025
+  Link: https://asteriskmag.com/issues/10/reports-of-the-death-of-california-high-speed-rail-have-been-greatly-exaggerated
+
+* It's Not the Incentives (2018)
+  Source: Hacker News
+  Published: Apr 28, 2025
+  Link: https://talyarkoni.org/blog/2018/10/02/no-its-not-the-incentives-its-you/
+
+* Temu adds ‘import charges’ after Trump tariffs
+  Source: TechCrunch
+  Published: Apr 28, 2025
+  By: Aisha Malik
+  Link: https://techcrunch.com/2025/04/28/temu-adds-import-charges-after-trump-tariffs/
+
+
+PROGRAMMING
+----------------------------------------
+* Python 3.14.0a7, 3.13.3, 3.12.10, 3.11.12, 3.10.17 and 3.9.22 are now available
+  Source: Python Blog
+  Published: Apr 08, 2025
+  By: Hugo (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2025/04/python-3140a7-3133-31210-31112-31017.html
+
+* Python 3.14.0 alpha 6 is out
+  Source: Python Blog
+  Published: Mar 14, 2025
+  By: Hugo (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2025/03/python-3140-alpha-6-is-out.html
+
+* Python 3.14.0 alpha 5 is out
+  Source: Python Blog
+  Published: Feb 11, 2025
+  By: Hugo (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2025/02/python-3140-alpha-5-is-out.html
+
+* Python 3.13.2 and 3.12.9 now available!
+  Source: Python Blog
+  Published: Feb 04, 2025
+  By: Thomas Wouters (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2025/02/python-3132-and-3129-now-available.html
+
+* Python 3.14.0 alpha 4 is out
+  Source: Python Blog
+  Published: Jan 14, 2025
+  By: Hugo (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2025/01/python-3140-alpha-4-is-out.html
+
+* Python 3.14.0 alpha 3 is out
+  Source: Python Blog
+  Published: Dec 17, 2024
+  By: Hugo (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2024/12/python-3140-alpha-3-is-out.html
+
+* Python 3.13.1, 3.12.8, 3.11.11, 3.10.16 and 3.9.21 are now available
+  Source: Python Blog
+  Published: Dec 04, 2024
+  By: Thomas Wouters (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2024/12/python-3131-3128-31111-31016-and-3921.html
+
+* Python 3.14.0 alpha 2 released
+  Source: Python Blog
+  Published: Nov 19, 2024
+  By: Hugo (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2024/11/python-3140-alpha-2-released.html
+
+* Python 3.14.0 alpha 1 is now available
+  Source: Python Blog
+  Published: Oct 15, 2024
+  By: Hugo (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2024/10/python-3140-alpha-1-is-now-available.html
+
+* Python 3.13.0 (final) released
+  Source: Python Blog
+  Published: Oct 07, 2024
+  By: Thomas Wouters (noreply@blogger.com)
+  Link: https://pythoninsider.blogspot.com/2024/10/python-3130-final-released.html
+
+
+WEB_DEVELOPMENT
+----------------------------------------
+* Anchor Positioning Just Don’t Care About Source Order
+  Source: CSS-Tricks
+  Published: Apr 28, 2025
+  By: Geoff Graham
+  Link: https://css-tricks.com/anchor-positioning-just-dont-care-about-source-order/
+
+* The Lost CSS Tricks of Cohost.org
+  Source: CSS-Tricks
+  Published: Apr 24, 2025
+  By: Blackle Mori
+  Link: https://css-tricks.com/the-lost-css-tricks-of-cohost-org/
+
+* “Pretty” is in the eye of the beholder
+  Source: CSS-Tricks
+  Published: Apr 18, 2025
+  By: Geoff Graham
+  Link: https://css-tricks.com/pretty-is-in-the-eye-of-the-beholder/
+
+* So, You Want to Give Up CSS Pre- and Post-Processors…
+  Source: CSS-Tricks
+  Published: Apr 17, 2025
+  By: Zell Liew
+  Link: https://css-tricks.com/so-you-want-to-give-up-css-pre-and-post-processors/
+
+* Using CSS backdrop-filter for UI Effects
+  Source: CSS-Tricks
+  Published: Apr 16, 2025
+  By: Preethi
+  Link: https://css-tricks.com/using-css-backdrop-filter-for-ui-effects/
+
+* Next Level CSS Styling for Cursors
+  Source: CSS-Tricks
+  Published: Apr 14, 2025
+  By: Declan Chidlow
+  Link: https://css-tricks.com/next-level-css-styling-for-cursors/
+
+* CSS-Tricks Chronicles XLIII
+  Source: CSS-Tricks
+  Published: Apr 11, 2025
+  By: Geoff Graham
+  Link: https://css-tricks.com/css-tricks-chronicles-xliii/
+
+* Tailwind’s @apply Feature is Better Than it Sounds
+  Source: CSS-Tricks
+  Published: Apr 10, 2025
+  By: Zell Liew
+  Link: https://css-tricks.com/tailwinds-apply-feature-is-better-than-it-sounds/
+
+* Cascading Layouts: A Workshop on Resilient CSS Layouts
+  Source: CSS-Tricks
+  Published: Apr 10, 2025
+  By: Geoff Graham
+  Link: https://css-tricks.com/cascading-layouts-a-workshop-on-resilient-css-layouts/
+
+* CSS Carousels
+  Source: CSS-Tricks
+  Published: Apr 09, 2025
+  By: Geoff Graham
+  Link: https://css-tricks.com/css-carousels/
+
+
+============================================================
+This digest was generated by Content Aggregator.
