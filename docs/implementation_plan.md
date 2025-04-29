@@ -39,11 +39,11 @@ This document outlines a step-by-step approach to building the content aggregato
 - Implement SNS publishing from the content aggregator ✅
 - Add error handling and delivery confirmation ✅
 
-### Step 6: Scheduled Execution with EventBridge
-- Create EventBridge rule for daily 8am execution
-- Configure target to trigger content aggregation and email sending
-- Implement logging and monitoring
-- Set up error notifications
+### Step 6: Scheduled Execution with EventBridge ✅
+- Create EventBridge rule for daily 8am execution ✅
+- Configure target to trigger content aggregation and email sending ✅
+- Implement logging and monitoring ✅
+- Set up error notifications ✅
 
 ## Phase 3: Advanced Features
 
@@ -136,10 +136,12 @@ This approach allows us to quickly deliver a working email digest while establis
 - Enhanced email digest generation with text format and relevance scoring
 - Simplified email output format for better compatibility
 - Temporarily disabled LinkedIn integration pending API access
+- Added AWS EventBridge scheduling for automated daily execution
+- Created Lambda function for serverless deployment
 
 ### Next Steps
-- Configure EventBridge for scheduled execution
 - Implement YouTube fetcher for AWS Events and other channels
 - Implement LinkedIn content fetcher when API access is available
 - Add user preferences for content categories
 - Set up DynamoDB for persistent content storage
+- Deploy to AWS Lambda using CloudFormation template
