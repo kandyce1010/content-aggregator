@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for Content Aggregator Lambda Layer'
+
+Resources:
+  ContentAggregatorLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: content-aggregator-dependencies
+      Description: Dependencies for Content Aggregator
+      CompatibleRuntimes:
+        - python3.9
+      Content:
+        S3Bucket: content-aggregator-lambda-deployment-kanbo
+        S3Key: layer.zip
+
+Outputs:
+  LayerVersionArn:
+    Description: ARN of the Lambda Layer
+    Value: !Ref ContentAggregatorLayer

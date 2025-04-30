@@ -5,6 +5,7 @@ Parameters:
   RecipientEmail:
     Type: String
     Description: Email address to receive the content digest
+    Default: kanbo@amazon.com
     
   ScheduleExpression:
     Type: String
@@ -30,6 +31,16 @@ Parameters:
     Type: Number
     Default: 300
     Description: Timeout for the Lambda function (seconds)
+    
+  S3BucketName:
+    Type: String
+    Default: content-aggregator-lambda-deployment-kanbo
+    Description: S3 bucket containing the Lambda deployment package
+    
+  S3Key:
+    Type: String
+    Default: content-aggregator.zip
+    Description: S3 key for the Lambda deployment package
 
 Resources:
   ContentAggregatorLambdaRole:
@@ -58,6 +69,15 @@ Resources:
                   - sns:ListSubscriptionsByTopic
                   - sns:SetTopicAttributes
                 Resource: '*'
+        - PolicyName: ContentAggregatorS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
 
   ContentAggregatorLambda:
     Type: AWS::Lambda::Function
@@ -66,8 +86,8 @@ Resources:
       Handler: aws.lambda_function.lambda_handler
       Role: !GetAtt ContentAggregatorLambdaRole.Arn
       Code:
-        S3Bucket: YOUR_S3_BUCKET_NAME  # Replace with your S3 bucket name
-        S3Key: content-aggregator.zip   # Replace with your deployment package path
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Ref S3Key
       Runtime: python3.9
       Timeout: !Ref LambdaTimeout
       MemorySize: !Ref LambdaMemorySize
