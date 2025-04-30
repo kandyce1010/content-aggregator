@@ -51,3 +51,8 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+*.zip
+deployment/
+layer-build/
+payload.json
+response.json
