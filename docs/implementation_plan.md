@@ -24,21 +24,40 @@
 - 🔲 Implement LinkedIn profile scraper
 - 🔲 Add YouTube channel monitoring
 
-## Phase 3: Content Processing Enhancements
+## Phase 3: Subscription Management System
+- 🔲 Create self-service subscription web form
+  - Simple HTML/CSS/JS form hosted on S3
+  - Form validation and error handling
+  - Success/failure messaging
+- 🔲 Implement subscription API
+  - Create Lambda function for subscription handling
+  - Set up API Gateway endpoint
+  - Enable CORS for cross-origin requests
+  - Integrate with existing SNS topic
+- 🔲 Add subscription management features
+  - Unsubscribe functionality
+  - Subscription preferences (categories, frequency)
+  - Email verification process
+- 🔲 Create admin dashboard for subscription management
+  - View all subscribers
+  - Add/remove subscribers manually
+  - View subscription analytics
+
+## Phase 4: Content Processing Enhancements
 - 🔲 Implement content deduplication
 - 🔲 Add sentiment analysis for content
 - 🔲 Implement content summarization
 - 🔲 Add content relevance scoring
 - 🔲 Create personalized content recommendations
 
-## Phase 4: User Experience Improvements
+## Phase 5: User Experience Improvements
 - 🔲 Create web interface for viewing digests
 - 🔲 Add user preferences for content filtering
 - 🔲 Implement content bookmarking
 - 🔲 Add content sharing capabilities
 - 🔲 Create mobile-friendly email templates
 
-## Phase 5: Analytics and Insights
+## Phase 6: Analytics and Insights
 - 🔲 Track content engagement metrics
 - 🔲 Generate content trend reports
 - 🔲 Implement content source performance analytics
