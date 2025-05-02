@@ -1,6 +1,26 @@
 {
   "rss_feeds": [
     {
+      "name": "Google Alert - AI-assisted coding",
+      "url": "https://www.google.com/alerts/feeds/05739473205985468954/5446857016790204396",
+      "category": "AI Coding Assistants"
+    },
+    {
+      "name": "Google Alert - Claude code",
+      "url": "https://www.google.com/alerts/feeds/05739473205985468954/5452592649250080204",
+      "category": "Competitors"
+    },
+    {
+      "name": "Google Alert - Microsoft Copilot",
+      "url": "https://www.google.com/alerts/feeds/05739473205985468954/4486821787822541736",
+      "category": "Competitors"
+    },
+    {
+      "name": "Google Alert - Amazon Q Developer",
+      "url": "https://www.google.com/alerts/feeds/05739473205985468954/17715301976231037069",
+      "category": "Amazon Q"
+    },
+    {
       "name": "AWS Blog",
       "url": "https://aws.amazon.com/blogs/aws/feed/",
       "category": "AWS"
@@ -9,11 +29,6 @@
       "name": "Amazon Q Developer Blog",
       "url": "https://aws.amazon.com/blogs/developer/tag/amazon-q/feed/",
       "category": "Amazon Q"
-    },
-    {
-      "name": "AWS News Blog",
-      "url": "https://aws.amazon.com/blogs/aws/feed/",
-      "category": "AWS"
     },
     {
       "name": "AWS Architecture Blog",
