@@ -44,8 +44,13 @@ class RSSFetcher:
         self.feeds = self._load_feed_config()
         
         # Create data directory if it doesn't exist
-        self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
-                                     '..', '..', 'data')
+        # Use /tmp directory in Lambda environment
+        if os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+            self.data_dir = '/tmp/data'
+        else:
+            # Use regular path for local development
+            self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                                        '..', '..', 'data')
         Path(self.data_dir).mkdir(parents=True, exist_ok=True)
         
     def _load_feed_config(self):
