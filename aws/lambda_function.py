@@ -62,8 +62,25 @@ def lambda_handler(event, context):
         # Fetch GitHub content
         github_content = aggregator.fetch_github_content()
         
-        # Combine content (excluding LinkedIn)
-        all_content = rss_content + github_content
+        # Fetch YouTube content if available
+        youtube_content = []
+        if hasattr(aggregator, 'fetch_youtube_content'):
+            try:
+                youtube_content = aggregator.fetch_youtube_content()
+                logger.info(f"Fetched {len(youtube_content)} YouTube items")
+            except Exception as e:
+                logger.error(f"Error fetching YouTube content: {e}")
+        
+        # Combine content
+        all_content = rss_content + github_content + youtube_content
+        
+        # Deduplicate content
+        try:
+            original_count = len(all_content)
+            all_content = aggregator.deduplicate_content(all_content)
+            logger.info(f"Deduplicated from {original_count} to {len(all_content)} items")
+        except Exception as e:
+            logger.error(f"Error deduplicating content: {e}")
         
         # Filter by category if specified
         if category:
