@@ -39,6 +39,19 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+    DEDUPLICATION_AVAILABLE = False
+    logging.warning("Deduplication module not available. Content deduplication will be skipped.")
+    YOUTUBE_AVAILABLE = True
+except ImportError:
+    YOUTUBE_AVAILABLE = False
+    logging.warning("YouTube fetcher not available. YouTube content will be skipped.")
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class ContentAggregator:
     """
@@ -84,12 +97,13 @@ class ContentAggregator:
         if YOUTUBE_AVAILABLE:
             self.youtube_fetcher = YouTubeFetcher(config_path, api_key=youtube_api_key)
     
-    def fetch_all_content(self, parallel=True) -> List[Dict[str, Any]]:
+    def fetch_all_content(self, parallel=True, deduplicate=True) -> List[Dict[str, Any]]:
         """
         Fetch content from all available sources.
         
         Args:
             parallel (bool): Whether to fetch content in parallel.
+            deduplicate (bool): Whether to deduplicate content.
             
         Returns:
             list: List of content items from all sources.
@@ -131,6 +145,10 @@ class ContentAggregator:
             
             if YOUTUBE_AVAILABLE:
                 all_content.extend(self.fetch_youtube_content())
+        
+        # Deduplicate content if requested
+        if deduplicate:
+            all_content = self.deduplicate_content(all_content)
         
         # Sort by date (newest first)
         all_content.sort(key=lambda x: x.get('published', ''), reverse=True)
@@ -459,3 +477,32 @@ if __name__ == "__main__":
     print("\nCategories:")
     for category, count in sorted(categories.items(), key=lambda x: x[1], reverse=True):
         print(f"  - {category}: {count} items")
+    def deduplicate_content(self, items: List[Dict[str, Any]], 
+                          similarity_threshold=0.85, 
+                          time_window_hours=24) -> List[Dict[str, Any]]:
+        """
+        Remove duplicate content items based on multiple factors.
+        
+        Args:
+            items: List of content items
+            similarity_threshold: Threshold for title similarity (0.0-1.0)
+            time_window_hours: Time window to consider for duplicates (in hours)
+            
+        Returns:
+            List of deduplicated content items
+        """
+        # Import the deduplication module here to avoid circular imports
+        try:
+            from backend.deduplication import ContentDeduplicator
+            
+            logger.info(f"Deduplicating {len(items)} content items")
+            deduplicator = ContentDeduplicator(
+                similarity_threshold=similarity_threshold,
+                time_window_hours=time_window_hours
+            )
+            unique_items = deduplicator.deduplicate_content(items)
+            logger.info(f"Deduplicated to {len(unique_items)} unique items")
+            return unique_items
+        except ImportError:
+            logger.warning("Deduplication module not available. Skipping deduplication.")
+            return items
