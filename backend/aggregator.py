@@ -45,13 +45,14 @@ class ContentAggregator:
     A class to aggregate content from multiple sources.
     """
     
-    def __init__(self, config_path=None, github_token=None):
+    def __init__(self, config_path=None, github_token=None, youtube_api_key=None):
         """
         Initialize the content aggregator with configuration.
         
         Args:
             config_path (str, optional): Path to the configuration file.
             github_token (str, optional): GitHub personal access token.
+            youtube_api_key (str, optional): YouTube Data API key.
         """
         if config_path is None:
             # Get the directory of the current file
@@ -61,6 +62,7 @@ class ContentAggregator:
         
         self.config_path = config_path
         self.github_token = github_token
+        self.youtube_api_key = youtube_api_key
         
         # Create data directory if it doesn't exist
         # Use /tmp directory in Lambda environment
@@ -80,7 +82,7 @@ class ContentAggregator:
             self.linkedin_fetcher = LinkedInFetcher(config_path)
         
         if YOUTUBE_AVAILABLE:
-            self.youtube_fetcher = YouTubeFetcher(config_path)
+            self.youtube_fetcher = YouTubeFetcher(config_path, api_key=youtube_api_key)
     
     def fetch_all_content(self, parallel=True) -> List[Dict[str, Any]]:
         """
@@ -220,6 +222,96 @@ class ContentAggregator:
             list: Filtered list of content items.
         """
         return [item for item in items if item.get('category') == category]
+        
+    def save_content(self, items: List[Dict[str, Any]], filename: Optional[str] = None) -> str:
+        """
+        Save content items to a JSON file.
+        
+        Args:
+            items (list): List of content items to save.
+            filename (str, optional): Filename to save to. If not provided, a timestamp-based name will be used.
+            
+        Returns:
+            str: Path to the saved file.
+        """
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"aggregated_content_{timestamp}.json"
+        
+        file_path = os.path.join(self.data_dir, filename)
+        
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(items, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved {len(items)} items to {file_path}")
+            return file_path
+        except Exception as e:
+            logger.error(f"Error saving content to {file_path}: {e}")
+            return ""
+    
+    def load_content(self, filename: str) -> List[Dict[str, Any]]:
+        """
+        Load content items from a JSON file.
+        
+        Args:
+            filename (str): Filename to load from.
+            
+        Returns:
+            list: List of content items.
+        """
+        file_path = os.path.join(self.data_dir, filename)
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                items = json.load(f)
+            logger.info(f"Loaded {len(items)} items from {file_path}")
+            return items
+        except Exception as e:
+            logger.error(f"Error loading content from {file_path}: {e}")
+            return []
+    
+    def get_latest_content_file(self) -> Optional[str]:
+        """
+        Get the latest content file in the data directory.
+        
+        Returns:
+            str: Filename of the latest content file, or None if no files found.
+        """
+        try:
+            files = [f for f in os.listdir(self.data_dir) if f.startswith("aggregated_content_") and f.endswith(".json")]
+            if not files:
+                return None
+            
+            # Sort files by timestamp (newest first)
+            files.sort(reverse=True)
+            return files[0]
+        except Exception as e:
+            logger.error(f"Error getting latest content file: {e}")
+            return None
+    
+    def search_content(self, items: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
+        """
+        Search content items for a query string.
+        
+        Args:
+            items (list): List of content items to search.
+            query (str): Query string to search for.
+            
+        Returns:
+            list: List of matching content items.
+        """
+        query = query.lower()
+        results = []
+        
+        for item in items:
+            # Search in title and summary
+            title = item.get('title', '').lower()
+            summary = item.get('summary', '').lower()
+            
+            if query in title or query in summary:
+                results.append(item)
+        
+        return results
     
     def filter_content_by_date(self, items: List[Dict[str, Any]], days: int) -> List[Dict[str, Any]]:
         """
@@ -244,10 +336,32 @@ class ContentAggregator:
                     continue
                 
                 # Handle different date formats
+                published_date = None
                 if 'T' in published_str:
                     # ISO format
                     published_date = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
                 else:
+                    # Try common date formats
+                    for fmt in ['%a, %d %b %Y %H:%M:%S %z', '%Y-%m-%d %H:%M:%S', '%d %b %Y %H:%M:%S', '%Y/%m/%d %H:%M:%S']:
+                        try:
+                            published_date = datetime.strptime(published_str, fmt)
+                            break
+                        except ValueError:
+                            continue
+                
+                # If we couldn't parse the date, skip this item
+                if published_date is None:
+                    logger.warning(f"Could not parse date: {published_str}")
+                    continue
+                
+                # Add item if it's newer than the cutoff date
+                if published_date >= cutoff_date:
+                    filtered_items.append(item)
+                    
+            except Exception as e:
+                logger.error(f"Error processing date {item.get('published', '')}: {e}")
+        
+        return filtered_items     else:
                     # Try other formats
                     try:
                         published_date = datetime.strptime(published_str, '%Y-%m-%d %H:%M:%S')

@@ -205,6 +205,56 @@ def fetch_and_display_github(args):
         print(f"\nSaved {len(items)} items to {file_path}")
 
 
+def fetch_and_display_youtube(args):
+    """
+    Fetch YouTube videos and display them according to command line arguments.
+    
+    Args:
+        args: Command line arguments
+    """
+    from backend.fetchers.youtube_fetcher import YouTubeFetcher
+    
+    fetcher = YouTubeFetcher(api_key=args.api_key)
+    print(f"Fetching YouTube videos...")
+    items = fetcher.fetch_all_channels()
+    
+    if not items:
+        print("No items found.")
+        return
+    
+    # Filter by category if specified
+    if args.category:
+        items = [item for item in items if item['category'] == args.category]
+        if not items:
+            print(f"No items found in category '{args.category}'.")
+            return
+    
+    # Sort items by date (newest first)
+    items.sort(key=lambda x: x['published'], reverse=True)
+    
+    # Limit number of items if specified
+    if args.limit and args.limit > 0:
+        items = items[:args.limit]
+    
+    print(f"\nDisplaying {len(items)} items:")
+    
+    for i, item in enumerate(items, 1):
+        display_item(item, i, args.verbose)
+    
+    # Save to file if requested
+    if args.save:
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'youtube_videos_{timestamp}.json'
+        file_path = os.path.join(data_dir, filename)
+        
+        with open(file_path, 'w') as f:
+            json.dump(items, f, indent=2)
+        print(f"\nSaved {len(items)} items to {file_path}")
+
+
 def list_categories(args):
     """
     List all available categories from the configuration.
@@ -256,6 +306,14 @@ def main():
     github_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
     github_parser.add_argument('-t', '--token', help='GitHub personal access token')
     
+    # YouTube command
+    youtube_parser = subparsers.add_parser('youtube', help='Fetch and display YouTube videos')
+    youtube_parser.add_argument('-c', '--category', help='Filter by category')
+    youtube_parser.add_argument('-l', '--limit', type=int, help='Limit number of items')
+    youtube_parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed information')
+    youtube_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
+    youtube_parser.add_argument('-a', '--api-key', help='YouTube Data API key')
+    
     # Categories command
     categories_parser = subparsers.add_parser('categories', help='List available categories')
     
@@ -267,6 +325,8 @@ def main():
         fetch_and_display_linkedin(args)
     elif args.command == 'github':
         fetch_and_display_github(args)
+    elif args.command == 'youtube':
+        fetch_and_display_youtube(args)
     elif args.command == 'categories':
         list_categories(args)
     else:

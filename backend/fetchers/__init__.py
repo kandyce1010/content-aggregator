@@ -12,5 +12,6 @@ This package contains modules for fetching content from various sources:
 from .rss_fetcher import RSSFetcher
 from .linkedin_fetcher import LinkedInFetcher
 from .github_fetcher import GitHubFetcher
+from .youtube_fetcher import YouTubeFetcher
 
-__all__ = ['RSSFetcher', 'LinkedInFetcher', 'GitHubFetcher']
+__all__ = ['RSSFetcher', 'LinkedInFetcher', 'GitHubFetcher', 'YouTubeFetcher']

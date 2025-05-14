@@ -107,5 +107,22 @@
       "repo": "amazon-q-connectjs",
       "category": "Amazon Q"
     }
+  ],
+  "youtube_channels": [
+    {
+      "name": "AWS Online Tech Talks",
+      "channel_id": "UCT-nPlVzJI-ccQXlxjSvJmw",
+      "category": "AWS"
+    },
+    {
+      "name": "AWS Events",
+      "channel_id": "UCdoadna9HFHsxXWhafhNvKw",
+      "category": "AWS"
+    },
+    {
+      "name": "Amazon Web Services",
+      "channel_id": "UCd6MoB9NC6uYN2grvUNT-Zg",
+      "category": "AWS"
+    }
   ]
 }
