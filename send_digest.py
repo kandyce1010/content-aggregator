@@ -42,7 +42,8 @@ def calculate_relevance_score(item):
     score = 0
     title = item.get('title', '').lower()
     summary = item.get('summary', '').lower()
-    content = title + ' ' + summary
+    ai_summary = item.get('ai_summary', '').lower()
+    content = title + ' ' + summary + ' ' + ai_summary
     
     # Primary keywords (Amazon Q specific)
     for keyword in primary_keywords:
@@ -89,13 +90,24 @@ def main():
     parser.add_argument('--region', default='us-east-1', help='AWS region')
     parser.add_argument('--profile', help='AWS profile name')
     parser.add_argument('--save-only', action='store_true', help='Save digest without sending email')
+    parser.add_argument('--summarize', action='store_true', help='Enable content summarization with Bedrock')
+    parser.add_argument('--mock-bedrock', action='store_true', help='Use mock mode for Bedrock (for testing)')
     
     args = parser.parse_args()
+    
+    # Set mock mode environment variable if requested
+    if args.mock_bedrock:
+        os.environ['BEDROCK_MOCK_MODE'] = '1'
     
     try:
         # Step 1: Aggregate content from all sources (excluding LinkedIn)
         logger.info("Aggregating content from all sources")
-        aggregator = ContentAggregator(github_token=args.github_token)
+        aggregator = ContentAggregator(
+            github_token=args.github_token,
+            enable_summarization=args.summarize,
+            bedrock_region=args.region,
+            bedrock_profile=args.profile
+        )
         
         # Fetch RSS content
         rss_content = aggregator.fetch_rss_content()
@@ -105,6 +117,30 @@ def main():
         
         # Combine content (excluding LinkedIn)
         all_content = rss_content + github_content
+        
+        # Process content with summarization if enabled
+        if args.summarize:
+            logger.info("Summarizing content with Bedrock")
+            if aggregator.summarizer:
+                all_content = aggregator.summarizer.batch_summarize(all_content)
+                
+                # Copy generated_summary to ai_summary for compatibility
+                for item in all_content:
+                    if item.get('generated_summary'):
+                        item['ai_summary'] = item['generated_summary']
+                
+                # Debug: Check if summaries were generated
+                summary_count = sum(1 for item in all_content if item.get('ai_summary'))
+                logger.info(f"Generated summaries for {summary_count}/{len(all_content)} items")
+                
+                # Print first few summaries for debugging
+                for i, item in enumerate(all_content[:3]):
+                    logger.info(f"Item {i+1} title: {item.get('title', 'Unknown')}")
+                    logger.info(f"Item {i+1} has summary: {'Yes' if item.get('ai_summary') else 'No'}")
+                    if item.get('ai_summary'):
+                        logger.info(f"Item {i+1} summary: {item.get('ai_summary')[:50]}...")
+            else:
+                logger.warning("Summarization requested but summarizer not available")
         
         # Filter by category if specified
         if args.category:
@@ -136,7 +172,8 @@ def main():
         for item in all_content:
             title = item.get('title', '').lower()
             summary = item.get('summary', '').lower()
-            content = title + ' ' + summary
+            ai_summary = item.get('ai_summary', '').lower()
+            content = title + ' ' + summary + ' ' + ai_summary
             for keyword in competitor_keywords:
                 if keyword in content:
                     competitor_items.append(item)
@@ -180,6 +217,8 @@ def main():
                 text_lines.append(f"  Source: {item['source']}")
                 if item.get('author') and item['author'] != 'Unknown':
                     text_lines.append(f"  By: {item['author']}")
+                if item.get('ai_summary'):
+                    text_lines.append(f"  Summary: {item['ai_summary']}")
                 text_lines.append(f"  Link: {item['link']}")
                 text_lines.append("")
             
@@ -195,6 +234,8 @@ def main():
                 text_lines.append(f"  Source: {item['source']}")
                 if item.get('author') and item['author'] != 'Unknown':
                     text_lines.append(f"  By: {item['author']}")
+                if item.get('ai_summary'):
+                    text_lines.append(f"  Summary: {item['ai_summary']}")
                 text_lines.append(f"  Link: {item['link']}")
                 text_lines.append("")
             
@@ -213,6 +254,8 @@ def main():
                     text_lines.append(f"  Source: {item['source']}")
                     if item.get('author') and item['author'] != 'Unknown':
                         text_lines.append(f"  By: {item['author']}")
+                    if item.get('ai_summary'):
+                        text_lines.append(f"  Summary: {item['ai_summary']}")
                     text_lines.append(f"  Link: {item['link']}")
                     text_lines.append("")
                 
