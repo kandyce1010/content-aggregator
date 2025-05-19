@@ -90,14 +90,13 @@ class GitHubFetcher:
             list: List of dictionaries containing repository activity.
         """
         repo_name = repo_config['name']
-        repo_url = repo_config['url']
+        owner = repo_config.get('owner')
+        repo = repo_config.get('repo')
         category = repo_config.get('category', 'github')
         
-        # Extract owner and repo from URL
-        # URL format: https://github.com/owner/repo
-        parts = repo_url.rstrip('/').split('/')
-        owner = parts[-2]
-        repo = parts[-1]
+        if not owner or not repo:
+            logger.error(f"Missing owner or repo for {repo_name}")
+            return []
         
         logger.info(f"Fetching GitHub repository: {owner}/{repo}")
         
@@ -200,10 +199,12 @@ class GitHubFetcher:
             prs = response.json()
             activities = []
             
-            # Get PRs from the last 7 days
-            cutoff_date = datetime.now() - timedelta(days=7)
+            # Get PRs from the last 7 days - use timezone aware datetime
+            from datetime import timezone
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
             
             for pr in prs:
+                # Parse the datetime with timezone info
                 updated_at = datetime.fromisoformat(pr['updated_at'].replace('Z', '+00:00'))
                 
                 # Skip PRs updated before the cutoff date
@@ -264,14 +265,16 @@ class GitHubFetcher:
             issues = response.json()
             activities = []
             
-            # Get issues from the last 7 days
-            cutoff_date = datetime.now() - timedelta(days=7)
+            # Get issues from the last 7 days - use timezone aware datetime
+            from datetime import timezone
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
             
             for issue in issues:
                 # Skip pull requests (they have a 'pull_request' key)
                 if 'pull_request' in issue:
                     continue
                     
+                # Parse the datetime with timezone info
                 updated_at = datetime.fromisoformat(issue['updated_at'].replace('Z', '+00:00'))
                 
                 # Skip issues updated before the cutoff date
@@ -318,7 +321,8 @@ class GitHubFetcher:
             list: List of commit activities.
         """
         # Get commits from the last 3 days
-        since = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        from datetime import timezone
+        since = (datetime.now(timezone.utc) - timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%SZ')
         url = f"https://api.github.com/repos/{owner}/{repo}/commits?since={since}"
         
         try:
