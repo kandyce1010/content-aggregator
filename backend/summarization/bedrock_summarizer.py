@@ -56,11 +56,24 @@ class BedrockSummarizer:
         if profile_name:
             session_kwargs['profile_name'] = profile_name
             
-        self.session = boto3.Session(**session_kwargs)
-        self.bedrock_runtime = self.session.client(
-            service_name='bedrock-runtime',
-            region_name=region_name
-        )
+        try:
+            self.session = boto3.Session(**session_kwargs)
+            # Try to create bedrock-runtime client
+            try:
+                self.bedrock_runtime = self.session.client(
+                    service_name='bedrock-runtime',
+                    region_name=region_name
+                )
+            except Exception as e:
+                # Fallback to bedrock client if bedrock-runtime is not available
+                logger.warning(f"bedrock-runtime service not available: {e}. Falling back to bedrock service.")
+                self.bedrock_runtime = self.session.client(
+                    service_name='bedrock',
+                    region_name=region_name
+                )
+        except Exception as e:
+            logger.error(f"Failed to initialize Bedrock client: {e}")
+            raise
         
         # Set up cache directory
         self.cache_dir = os.path.join(

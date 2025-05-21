@@ -64,12 +64,13 @@ def lambda_handler(event, context):
         
         # Fetch YouTube content if available
         youtube_content = []
-        if hasattr(aggregator, 'fetch_youtube_content'):
-            try:
-                youtube_content = aggregator.fetch_youtube_content()
-                logger.info(f"Fetched {len(youtube_content)} YouTube items")
-            except Exception as e:
-                logger.error(f"Error fetching YouTube content: {e}")
+        # Temporarily disable YouTube fetching until API key is available
+        # if hasattr(aggregator, 'fetch_youtube_content'):
+        #     try:
+        #         youtube_content = aggregator.fetch_youtube_content()
+        #         logger.info(f"Fetched {len(youtube_content)} YouTube items")
+        #     except Exception as e:
+        #         logger.error(f"Error fetching YouTube content: {e}")
         
         # Combine content
         all_content = rss_content + github_content + youtube_content

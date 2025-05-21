@@ -283,8 +283,10 @@ class ContentAggregator:
             list: Filtered list of content items.
         """
         from datetime import datetime, timedelta
+        import pytz
         
-        cutoff_date = datetime.now() - timedelta(days=days)
+        # Create a timezone-aware cutoff date in UTC
+        cutoff_date = datetime.now(pytz.UTC) - timedelta(days=days)
         
         filtered_items = []
         for item in items:
@@ -297,12 +299,32 @@ class ContentAggregator:
                 published_date = None
                 if 'T' in published_str:
                     # ISO format
-                    published_date = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
+                    try:
+                        # Try to parse as timezone-aware ISO format
+                        if 'Z' in published_str:
+                            # Replace Z with +00:00 for UTC timezone
+                            published_date = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
+                        elif '+' in published_str or '-' in published_str and published_str.rindex('-') > 10:
+                            # Already has timezone info
+                            published_date = datetime.fromisoformat(published_str)
+                        else:
+                            # No timezone info, assume UTC
+                            published_date = datetime.fromisoformat(published_str).replace(tzinfo=pytz.UTC)
+                    except ValueError:
+                        # Fallback to naive datetime and add UTC timezone
+                        try:
+                            published_date = datetime.fromisoformat(published_str.split('T')[0])
+                            published_date = published_date.replace(tzinfo=pytz.UTC)
+                        except:
+                            pass
                 else:
                     # Try common date formats
                     for fmt in ['%a, %d %b %Y %H:%M:%S %z', '%Y-%m-%d %H:%M:%S', '%d %b %Y %H:%M:%S', '%Y/%m/%d %H:%M:%S']:
                         try:
                             published_date = datetime.strptime(published_str, fmt)
+                            # Add UTC timezone if the parsed date is naive
+                            if published_date.tzinfo is None:
+                                published_date = published_date.replace(tzinfo=pytz.UTC)
                             break
                         except ValueError:
                             continue
@@ -311,6 +333,10 @@ class ContentAggregator:
                 if published_date is None:
                     logger.warning(f"Could not parse date: {published_str}")
                     continue
+                
+                # Make sure cutoff_date and published_date are both timezone-aware
+                if published_date.tzinfo is None:
+                    published_date = published_date.replace(tzinfo=pytz.UTC)
                 
                 # Add item if it's newer than the cutoff date
                 if published_date >= cutoff_date:
