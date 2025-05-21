@@ -76,10 +76,15 @@ class BedrockSummarizer:
             raise
         
         # Set up cache directory
-        self.cache_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            '..', 'data', 'summary_cache'
-        )
+        if os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+            # Use /tmp directory in Lambda environment (writable)
+            self.cache_dir = '/tmp/summary_cache'
+        else:
+            # Use regular path for local development
+            self.cache_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                '..', 'data', 'summary_cache'
+            )
         os.makedirs(self.cache_dir, exist_ok=True)
         
         # Load cache if it exists
