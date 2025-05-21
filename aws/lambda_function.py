@@ -54,7 +54,7 @@ def lambda_handler(event, context):
         
         # Step 1: Aggregate content from all sources
         logger.info("Aggregating content from all sources")
-        aggregator = ContentAggregator()
+        aggregator = ContentAggregator(enable_summarization=True)
         
         # Fetch RSS content
         rss_content = aggregator.fetch_rss_content()
@@ -73,6 +73,22 @@ def lambda_handler(event, context):
         
         # Combine content
         all_content = rss_content + github_content + youtube_content
+        
+        # Enable content summarization with Bedrock if available
+        try:
+            if hasattr(aggregator, 'summarizer') and aggregator.summarizer:
+                logger.info("Summarizing content with Bedrock")
+                all_content = aggregator.summarizer.batch_summarize(all_content)
+                
+                # Copy generated_summary to ai_summary for compatibility
+                for item in all_content:
+                    if item.get('generated_summary'):
+                        item['ai_summary'] = item['generated_summary']
+                
+                summary_count = sum(1 for item in all_content if item.get('ai_summary'))
+                logger.info(f"Generated summaries for {summary_count}/{len(all_content)} items")
+        except Exception as e:
+            logger.error(f"Error summarizing content: {e}")
         
         # Deduplicate content
         try:
@@ -156,6 +172,8 @@ def lambda_handler(event, context):
                 text_lines.append(f"  Source: {item['source']}")
                 if item.get('author') and item['author'] != 'Unknown':
                     text_lines.append(f"  By: {item['author']}")
+                if item.get('ai_summary'):
+                    text_lines.append(f"  Summary: {item['ai_summary']}")
                 text_lines.append(f"  Link: {item['link']}")
                 text_lines.append("")
             
@@ -171,6 +189,8 @@ def lambda_handler(event, context):
                 text_lines.append(f"  Source: {item['source']}")
                 if item.get('author') and item['author'] != 'Unknown':
                     text_lines.append(f"  By: {item['author']}")
+                if item.get('ai_summary'):
+                    text_lines.append(f"  Summary: {item['ai_summary']}")
                 text_lines.append(f"  Link: {item['link']}")
                 text_lines.append("")
             
@@ -189,6 +209,8 @@ def lambda_handler(event, context):
                     text_lines.append(f"  Source: {item['source']}")
                     if item.get('author') and item['author'] != 'Unknown':
                         text_lines.append(f"  By: {item['author']}")
+                    if item.get('ai_summary'):
+                        text_lines.append(f"  Summary: {item['ai_summary']}")
                     text_lines.append(f"  Link: {item['link']}")
                     text_lines.append("")
                 
