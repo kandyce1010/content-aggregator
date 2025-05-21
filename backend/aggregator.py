@@ -27,24 +27,25 @@ except ImportError:
     logging.warning("LinkedIn fetcher not available. LinkedIn content will be skipped.")
 
 try:
+    from backend.summarization import BedrockSummarizer
+    SUMMARIZATION_AVAILABLE = True
+except ImportError:
+    SUMMARIZATION_AVAILABLE = False
+    logging.warning("Summarization module not available. Content summarization will be skipped.")
+
+try:
     from backend.fetchers.youtube_fetcher import YouTubeFetcher
     YOUTUBE_AVAILABLE = True
 except ImportError:
     YOUTUBE_AVAILABLE = False
     logging.warning("YouTube fetcher not available. YouTube content will be skipped.")
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+try:
+    from backend.deduplication import ContentDeduplicator
+    DEDUPLICATION_AVAILABLE = True
+except ImportError:
     DEDUPLICATION_AVAILABLE = False
     logging.warning("Deduplication module not available. Content deduplication will be skipped.")
-    YOUTUBE_AVAILABLE = True
-except ImportError:
-    YOUTUBE_AVAILABLE = False
-    logging.warning("YouTube fetcher not available. YouTube content will be skipped.")
 
 # Configure logging
 logging.basicConfig(
@@ -58,7 +59,8 @@ class ContentAggregator:
     A class to aggregate content from multiple sources.
     """
     
-    def __init__(self, config_path=None, github_token=None, youtube_api_key=None):
+    def __init__(self, config_path=None, github_token=None, youtube_api_key=None, 
+                 enable_summarization=False, bedrock_region=None, bedrock_profile=None):
         """
         Initialize the content aggregator with configuration.
         
@@ -66,6 +68,9 @@ class ContentAggregator:
             config_path (str, optional): Path to the configuration file.
             github_token (str, optional): GitHub personal access token.
             youtube_api_key (str, optional): YouTube Data API key.
+            enable_summarization (bool): Whether to enable content summarization.
+            bedrock_region (str, optional): AWS region for Bedrock.
+            bedrock_profile (str, optional): AWS profile for Bedrock.
         """
         if config_path is None:
             # Get the directory of the current file
@@ -76,6 +81,7 @@ class ContentAggregator:
         self.config_path = config_path
         self.github_token = github_token
         self.youtube_api_key = youtube_api_key
+        self.enable_summarization = enable_summarization
         
         # Create data directory if it doesn't exist
         # Use /tmp directory in Lambda environment
@@ -96,14 +102,28 @@ class ContentAggregator:
         
         if YOUTUBE_AVAILABLE:
             self.youtube_fetcher = YouTubeFetcher(config_path, api_key=youtube_api_key)
+            
+        # Initialize summarizer if enabled
+        self.summarizer = None
+        if enable_summarization and SUMMARIZATION_AVAILABLE:
+            try:
+                self.summarizer = BedrockSummarizer(
+                    region_name=bedrock_region or 'us-east-1',
+                    profile_name=bedrock_profile
+                )
+                logger.info("Content summarization enabled with Bedrock")
+            except Exception as e:
+                logger.error(f"Failed to initialize Bedrock summarizer: {e}")
+                self.summarizer = None
     
-    def fetch_all_content(self, parallel=True, deduplicate=True) -> List[Dict[str, Any]]:
+    def fetch_all_content(self, parallel=True, deduplicate=True, summarize=None) -> List[Dict[str, Any]]:
         """
         Fetch content from all available sources.
         
         Args:
             parallel (bool): Whether to fetch content in parallel.
             deduplicate (bool): Whether to deduplicate content.
+            summarize (bool, optional): Whether to summarize content. If None, uses the instance setting.
             
         Returns:
             list: List of content items from all sources.
@@ -152,6 +172,16 @@ class ContentAggregator:
         
         # Sort by date (newest first)
         all_content.sort(key=lambda x: x.get('published', ''), reverse=True)
+        
+        # Summarize content if requested
+        should_summarize = summarize if summarize is not None else self.enable_summarization
+        if should_summarize and self.summarizer is not None:
+            try:
+                logger.info(f"Summarizing {len(all_content)} content items")
+                all_content = self.summarizer.batch_summarize(all_content)
+                logger.info("Content summarization completed")
+            except Exception as e:
+                logger.error(f"Error summarizing content: {e}")
         
         logger.info(f"Fetched {len(all_content)} items from all sources")
         return all_content
@@ -240,6 +270,56 @@ class ContentAggregator:
             list: Filtered list of content items.
         """
         return [item for item in items if item.get('category') == category]
+    
+    def filter_content_by_date(self, items: List[Dict[str, Any]], days: int) -> List[Dict[str, Any]]:
+        """
+        Filter content items by date (items from the last X days).
+        
+        Args:
+            items (list): List of content items.
+            days (int): Number of days to include.
+            
+        Returns:
+            list: Filtered list of content items.
+        """
+        from datetime import datetime, timedelta
+        
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        filtered_items = []
+        for item in items:
+            try:
+                published_str = item.get('published', '')
+                if not published_str:
+                    continue
+                
+                # Handle different date formats
+                published_date = None
+                if 'T' in published_str:
+                    # ISO format
+                    published_date = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
+                else:
+                    # Try common date formats
+                    for fmt in ['%a, %d %b %Y %H:%M:%S %z', '%Y-%m-%d %H:%M:%S', '%d %b %Y %H:%M:%S', '%Y/%m/%d %H:%M:%S']:
+                        try:
+                            published_date = datetime.strptime(published_str, fmt)
+                            break
+                        except ValueError:
+                            continue
+                
+                # If we couldn't parse the date, skip this item
+                if published_date is None:
+                    logger.warning(f"Could not parse date: {published_str}")
+                    continue
+                
+                # Add item if it's newer than the cutoff date
+                if published_date >= cutoff_date:
+                    filtered_items.append(item)
+                    
+            except Exception as e:
+                logger.error(f"Error processing date {item.get('published', '')}: {e}")
+        
+        return filtered_items
         
     def save_content(self, items: List[Dict[str, Any]], filename: Optional[str] = None) -> str:
         """
@@ -331,99 +411,39 @@ class ContentAggregator:
         
         return results
     
-    def filter_content_by_date(self, items: List[Dict[str, Any]], days: int) -> List[Dict[str, Any]]:
+    def deduplicate_content(self, items: List[Dict[str, Any]], 
+                          similarity_threshold=0.85, 
+                          time_window_hours=24) -> List[Dict[str, Any]]:
         """
-        Filter content items by date (items from the last X days).
+        Remove duplicate content items based on multiple factors.
         
         Args:
-            items (list): List of content items.
-            days (int): Number of days to include.
+            items: List of content items
+            similarity_threshold: Threshold for title similarity (0.0-1.0)
+            time_window_hours: Time window to consider for duplicates (in hours)
             
         Returns:
-            list: Filtered list of content items.
+            List of deduplicated content items
         """
-        from datetime import datetime, timedelta
-        
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        filtered_items = []
-        for item in items:
-            try:
-                published_str = item.get('published', '')
-                if not published_str:
-                    continue
-                
-                # Handle different date formats
-                published_date = None
-                if 'T' in published_str:
-                    # ISO format
-                    published_date = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
-                else:
-                    # Try common date formats
-                    for fmt in ['%a, %d %b %Y %H:%M:%S %z', '%Y-%m-%d %H:%M:%S', '%d %b %Y %H:%M:%S', '%Y/%m/%d %H:%M:%S']:
-                        try:
-                            published_date = datetime.strptime(published_str, fmt)
-                            break
-                        except ValueError:
-                            continue
-                
-                # If we couldn't parse the date, skip this item
-                if published_date is None:
-                    logger.warning(f"Could not parse date: {published_str}")
-                    continue
-                
-                # Add item if it's newer than the cutoff date
-                if published_date >= cutoff_date:
-                    filtered_items.append(item)
-                    
-            except Exception as e:
-                logger.error(f"Error processing date {item.get('published', '')}: {e}")
-        
-        return filtered_items     else:
-                    # Try other formats
-                    try:
-                        published_date = datetime.strptime(published_str, '%Y-%m-%d %H:%M:%S')
-                    except ValueError:
-                        try:
-                            published_date = datetime.strptime(published_str, '%a, %d %b %Y %H:%M:%S %z')
-                        except ValueError:
-                            # Skip items with unparseable dates
-                            continue
-                
-                if published_date >= cutoff_date:
-                    filtered_items.append(item)
-            except Exception:
-                # Skip items with date parsing errors
-                continue
-        
-        return filtered_items
-    
-    def save_content(self, items: List[Dict[str, Any]], filename: Optional[str] = None) -> str:
-        """
-        Save content items to a JSON file.
-        
-        Args:
-            items (list): List of content items to save.
-            filename (str, optional): Name of the file to save to.
-                If None, a default name will be used.
-                
-        Returns:
-            str: Path to the saved file.
-        """
-        if filename is None:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'aggregated_content_{timestamp}.json'
-        
-        file_path = os.path.join(self.data_dir, filename)
-        
+        # Import the deduplication module here to avoid circular imports
+        if not DEDUPLICATION_AVAILABLE:
+            logger.warning("Deduplication module not available. Skipping deduplication.")
+            return items
+            
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(items, f, indent=2)
-            logger.info(f"Saved {len(items)} items to {file_path}")
-            return file_path
+            from backend.deduplication import ContentDeduplicator
+            
+            logger.info(f"Deduplicating {len(items)} content items")
+            deduplicator = ContentDeduplicator(
+                similarity_threshold=similarity_threshold,
+                time_window_hours=time_window_hours
+            )
+            unique_items = deduplicator.deduplicate_content(items)
+            logger.info(f"Deduplicated to {len(unique_items)} unique items")
+            return unique_items
         except Exception as e:
-            logger.error(f"Error saving content to {file_path}: {e}")
-            return None
+            logger.error(f"Error during deduplication: {e}")
+            return items
 
 
 if __name__ == "__main__":
@@ -477,32 +497,3 @@ if __name__ == "__main__":
     print("\nCategories:")
     for category, count in sorted(categories.items(), key=lambda x: x[1], reverse=True):
         print(f"  - {category}: {count} items")
-    def deduplicate_content(self, items: List[Dict[str, Any]], 
-                          similarity_threshold=0.85, 
-                          time_window_hours=24) -> List[Dict[str, Any]]:
-        """
-        Remove duplicate content items based on multiple factors.
-        
-        Args:
-            items: List of content items
-            similarity_threshold: Threshold for title similarity (0.0-1.0)
-            time_window_hours: Time window to consider for duplicates (in hours)
-            
-        Returns:
-            List of deduplicated content items
-        """
-        # Import the deduplication module here to avoid circular imports
-        try:
-            from backend.deduplication import ContentDeduplicator
-            
-            logger.info(f"Deduplicating {len(items)} content items")
-            deduplicator = ContentDeduplicator(
-                similarity_threshold=similarity_threshold,
-                time_window_hours=time_window_hours
-            )
-            unique_items = deduplicator.deduplicate_content(items)
-            logger.info(f"Deduplicated to {len(unique_items)} unique items")
-            return unique_items
-        except ImportError:
-            logger.warning("Deduplication module not available. Skipping deduplication.")
-            return items
