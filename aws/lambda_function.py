@@ -54,7 +54,9 @@ def lambda_handler(event, context):
         
         # Step 1: Aggregate content from all sources
         logger.info("Aggregating content from all sources")
-        aggregator = ContentAggregator(enable_summarization=True)
+        
+        # Disable summarization for now due to Lambda timeout issues
+        aggregator = ContentAggregator(enable_summarization=False)
         
         # Fetch RSS content
         rss_content = aggregator.fetch_rss_content()
@@ -127,8 +129,8 @@ def lambda_handler(event, context):
         competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
         competitor_items = []
         for item in all_content:
-            title = item.get('title', '').lower()
-            summary = item.get('summary', '').lower()
+            title = item.get('title', '').lower() if item.get('title') is not None else ''
+            summary = item.get('summary', '').lower() if item.get('summary') is not None else ''
             content = title + ' ' + summary
             for keyword in competitor_keywords:
                 if keyword in content:
@@ -265,8 +267,8 @@ def calculate_relevance_score(item):
     competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
     
     score = 0
-    title = item.get('title', '').lower()
-    summary = item.get('summary', '').lower()
+    title = item.get('title', '').lower() if item.get('title') is not None else ''
+    summary = item.get('summary', '').lower() if item.get('summary') is not None else ''
     content = title + ' ' + summary
     
     # Primary keywords (Amazon Q specific)

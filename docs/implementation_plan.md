@@ -22,12 +22,12 @@
   - Codeium
   - Replit Ghostwriter
 - 🔲 Implement LinkedIn profile scraper
-- 🔲 Add YouTube channel monitoring (Partially implemented)
+- 🔲 Add YouTube channel monitoring (Not yet implemented)
   - ✅ Created YouTube fetcher module structure
   - ✅ Added YouTube channels to configuration
   - ✅ Integrated with content aggregator class
-  - ✅ Complete YouTube API integration
-  - ✅ Install required dependencies (google-api-python-client)
+  - 🔲 Obtain YouTube API key
+  - 🔲 Complete YouTube API integration
   - 🔲 Test and optimize YouTube content fetching
   - 🔲 Enhance web interface for YouTube video display
 
@@ -67,6 +67,11 @@
   - ✅ Configure summarization parameters (length, style, focus)
   - ✅ Handle rate limiting and error cases
   - ✅ Add fallback mechanisms when summarization fails
+  - 🔲 Optimize Lambda-based summarization (performance issues)
+    - 🔲 Option 1: Selective Summarization - Only summarize high-relevance content (score >= 80)
+    - 🔲 Option 2: Batch Processing - Use SQS queue and worker Lambdas to process items in smaller batches
+    - 🔲 Option 3: Step Functions Workflow - Orchestrate content fetching and summarization in parallel
+    - 🔲 Option 4: Asynchronous Processing - Send initial digest without summaries, follow up later
 - ✅ Add content relevance scoring
 - 🔲 Create personalized content recommendations
 
