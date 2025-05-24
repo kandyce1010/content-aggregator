@@ -1,337 +1,211 @@
 #!/usr/bin/env python3
 """
-Content Aggregator CLI
+Command Line Interface for Content Aggregator
 
-A command-line interface for the Content Aggregator that allows fetching
-and displaying content from various sources.
+This module provides a CLI for running the content aggregator.
 """
 
 import argparse
-import json
-import os
+import asyncio
+import logging
 import sys
 from datetime import datetime
-from pathlib import Path
 
-# Add the parent directory to sys.path to allow importing from backend
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-from backend.fetchers.rss_fetcher import RSSFetcher
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Content Aggregator CLI')
+    
+    # Basic options
+    parser.add_argument('--fetch-all', action='store_true', help='Fetch content from all sources')
+    parser.add_argument('--rss-only', action='store_true', help='Fetch only RSS content')
+    parser.add_argument('--github-only', action='store_true', help='Fetch only GitHub content')
+    parser.add_argument('--youtube-only', action='store_true', help='Fetch only YouTube content')
+    
+    # Filter options
+    parser.add_argument('--filter-category', type=str, help='Filter content by category')
+    parser.add_argument('--filter-days', type=int, default=7, help='Filter content from the last X days')
+    
+    # Output options
+    parser.add_argument('--save', action='store_true', help='Save fetched content to a file')
+    parser.add_argument('--load', type=str, help='Load content from a file')
+    parser.add_argument('--search', type=str, help='Search content for a query string')
+    
+    # Email options
+    parser.add_argument('--email', type=str, help='Send digest to email address')
+    parser.add_argument('--max-items', type=int, default=10, help='Maximum items per category')
+    
+    # Workflow options
+    parser.add_argument('--use-strands', action='store_true', help='Use Strands workflow')
+    parser.add_argument('--enable-summarization', action='store_true', help='Enable content summarization')
+    parser.add_argument('--batch-size', type=int, default=10, help='Batch size for summarization')
+    
+    return parser.parse_args()
 
-
-def display_item(item, index, verbose=False):
-    """
-    Display a single content item in the terminal.
+async def run_strands_workflow(args):
+    """Run the content aggregator using Strands workflow."""
+    from backend.strands.workflow import ContentAggregatorWorkflow
+    from backend.email_digest.email_sender import EmailSender
     
-    Args:
-        item (dict): The content item to display
-        index (int): The item number
-        verbose (bool): Whether to show detailed information
-    """
-    print(f"\n{'-' * 80}")
-    print(f"{index}. [{item['source']}] {item['title']}")
-    print(f"   Category: {item['category']}")
-    print(f"   Published: {item['published']}")
-    print(f"   Link: {item['link']}")
+    logger.info("Running content aggregator with Strands workflow")
     
-    if verbose:
-        print(f"\n   Summary:")
-        # Print summary with word wrap
-        summary = item['summary']
-        # Simple HTML tag removal (very basic)
-        summary = summary.replace('<p>', '').replace('</p>', '\n')
-        summary = summary.replace('<br>', '\n').replace('<br/>', '\n')
-        
-        # Print with word wrap (80 chars)
-        words = summary.split()
-        line = "   "
-        for word in words:
-            if len(line) + len(word) + 1 > 80:
-                print(line)
-                line = "   " + word + " "
-            else:
-                line += word + " "
-        if line.strip():
-            print(line)
-    
-    print(f"{'-' * 80}")
-
-
-def fetch_and_display_rss(args):
-    """
-    Fetch RSS feeds and display them according to command line arguments.
-    
-    Args:
-        args: Command line arguments
-    """
-    fetcher = RSSFetcher()
-    print(f"Fetching RSS feeds...")
-    items = fetcher.fetch_all_feeds()
-    
-    if not items:
-        print("No items found.")
-        return
-    
-    # Filter by category if specified
-    if args.category:
-        items = [item for item in items if item['category'] == args.category]
-        if not items:
-            print(f"No items found in category '{args.category}'.")
-            return
-    
-    # Sort items by date (newest first)
-    items.sort(key=lambda x: x['published'], reverse=True)
-    
-    # Limit number of items if specified
-    if args.limit and args.limit > 0:
-        items = items[:args.limit]
-    
-    print(f"\nDisplaying {len(items)} items:")
-    
-    for i, item in enumerate(items, 1):
-        display_item(item, i, args.verbose)
-    
-    # Save to file if requested
-    if args.save:
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-        Path(data_dir).mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'rss_items_{timestamp}.json'
-        file_path = os.path.join(data_dir, filename)
-        
-        with open(file_path, 'w') as f:
-            json.dump(items, f, indent=2)
-        print(f"\nSaved {len(items)} items to {file_path}")
-
-
-def fetch_and_display_linkedin(args):
-    """
-    Fetch LinkedIn posts and display them according to command line arguments.
-    
-    Args:
-        args: Command line arguments
-    """
-    from backend.fetchers.linkedin_fetcher import LinkedInFetcher
-    
-    fetcher = LinkedInFetcher()
-    print(f"Fetching LinkedIn posts...")
-    items = fetcher.fetch_all_profiles()
-    
-    if not items:
-        print("No items found.")
-        return
-    
-    # Filter by category if specified
-    if args.category:
-        items = [item for item in items if item['category'] == args.category]
-        if not items:
-            print(f"No items found in category '{args.category}'.")
-            return
-    
-    # Sort items by date (newest first)
-    items.sort(key=lambda x: x['published'], reverse=True)
-    
-    # Limit number of items if specified
-    if args.limit and args.limit > 0:
-        items = items[:args.limit]
-    
-    print(f"\nDisplaying {len(items)} items:")
-    
-    for i, item in enumerate(items, 1):
-        display_item(item, i, args.verbose)
-    
-    # Save to file if requested
-    if args.save:
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-        Path(data_dir).mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'linkedin_posts_{timestamp}.json'
-        file_path = os.path.join(data_dir, filename)
-        
-        with open(file_path, 'w') as f:
-            json.dump(items, f, indent=2)
-        print(f"\nSaved {len(items)} items to {file_path}")
-
-
-def fetch_and_display_github(args):
-    """
-    Fetch GitHub repository activity and display it according to command line arguments.
-    
-    Args:
-        args: Command line arguments
-    """
-    from backend.fetchers.github_fetcher import GitHubFetcher
-    
-    fetcher = GitHubFetcher(token=args.token)
-    print(f"Fetching GitHub repository activity...")
-    items = fetcher.fetch_all_repositories()
-    
-    if not items:
-        print("No items found.")
-        return
-    
-    # Filter by category if specified
-    if args.category:
-        items = [item for item in items if item['category'] == args.category]
-        if not items:
-            print(f"No items found in category '{args.category}'.")
-            return
-    
-    # Sort items by date (newest first)
-    items.sort(key=lambda x: x['published'], reverse=True)
-    
-    # Limit number of items if specified
-    if args.limit and args.limit > 0:
-        items = items[:args.limit]
-    
-    print(f"\nDisplaying {len(items)} items:")
-    
-    for i, item in enumerate(items, 1):
-        display_item(item, i, args.verbose)
-    
-    # Save to file if requested
-    if args.save:
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-        Path(data_dir).mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'github_activities_{timestamp}.json'
-        file_path = os.path.join(data_dir, filename)
-        
-        with open(file_path, 'w') as f:
-            json.dump(items, f, indent=2)
-        print(f"\nSaved {len(items)} items to {file_path}")
-
-
-def fetch_and_display_youtube(args):
-    """
-    Fetch YouTube videos and display them according to command line arguments.
-    
-    Args:
-        args: Command line arguments
-    """
-    from backend.fetchers.youtube_fetcher import YouTubeFetcher
-    
-    fetcher = YouTubeFetcher(api_key=args.api_key)
-    print(f"Fetching YouTube videos...")
-    items = fetcher.fetch_all_channels()
-    
-    if not items:
-        print("No items found.")
-        return
-    
-    # Filter by category if specified
-    if args.category:
-        items = [item for item in items if item['category'] == args.category]
-        if not items:
-            print(f"No items found in category '{args.category}'.")
-            return
-    
-    # Sort items by date (newest first)
-    items.sort(key=lambda x: x['published'], reverse=True)
-    
-    # Limit number of items if specified
-    if args.limit and args.limit > 0:
-        items = items[:args.limit]
-    
-    print(f"\nDisplaying {len(items)} items:")
-    
-    for i, item in enumerate(items, 1):
-        display_item(item, i, args.verbose)
-    
-    # Save to file if requested
-    if args.save:
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-        Path(data_dir).mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'youtube_videos_{timestamp}.json'
-        file_path = os.path.join(data_dir, filename)
-        
-        with open(file_path, 'w') as f:
-            json.dump(items, f, indent=2)
-        print(f"\nSaved {len(items)} items to {file_path}")
-
-
-def list_categories(args):
-    """
-    List all available categories from the configuration.
-    
-    Args:
-        args: Command line arguments
-    """
-    fetcher = RSSFetcher()
-    categories = set()
-    
-    for feed in fetcher.feeds:
-        categories.add(feed.get('category', 'uncategorized'))
-    
-    print("\nAvailable categories:")
-    for category in sorted(categories):
-        print(f"  - {category}")
-
-
-def main():
-    """
-    Main entry point for the CLI.
-    """
-    parser = argparse.ArgumentParser(
-        description='Content Aggregator CLI',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    # Create and run the workflow
+    workflow = ContentAggregatorWorkflow(
+        email=args.email,
+        days=args.filter_days,
+        max_items=args.max_items,
+        category=args.filter_category or "",
+        enable_summarization=args.enable_summarization,
+        batch_size=args.batch_size
     )
     
-    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    # Run the workflow
+    workflow_results = await workflow.run()
     
-    # RSS command
-    rss_parser = subparsers.add_parser('rss', help='Fetch and display RSS feeds')
-    rss_parser.add_argument('-c', '--category', help='Filter by category')
-    rss_parser.add_argument('-l', '--limit', type=int, help='Limit number of items')
-    rss_parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed information')
-    rss_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
+    # Extract the digest content
+    digest_results = workflow_results.get('generate_digest', {})
+    digest_content = digest_results.get('digest', '')
     
-    # LinkedIn command
-    linkedin_parser = subparsers.add_parser('linkedin', help='Fetch and display LinkedIn posts')
-    linkedin_parser.add_argument('-c', '--category', help='Filter by category')
-    linkedin_parser.add_argument('-l', '--limit', type=int, help='Limit number of items')
-    linkedin_parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed information')
-    linkedin_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
+    # Print the digest content
+    print("\n" + "=" * 80)
+    print("CONTENT DIGEST")
+    print("=" * 80)
+    print(digest_content)
+    print("=" * 80)
     
-    # GitHub command
-    github_parser = subparsers.add_parser('github', help='Fetch and display GitHub repository activity')
-    github_parser.add_argument('-c', '--category', help='Filter by category')
-    github_parser.add_argument('-l', '--limit', type=int, help='Limit number of items')
-    github_parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed information')
-    github_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
-    github_parser.add_argument('-t', '--token', help='GitHub personal access token')
+    # Send the email if requested
+    if args.email and digest_content:
+        logger.info(f"Sending email digest to {args.email}")
+        sender = EmailSender()
+        response = sender.send_digest(args.email, "Your Daily Content Digest", digest_content)
+        logger.info(f"Email process completed! Status: {response.get('Status', 'Sent')}")
     
-    # YouTube command
-    youtube_parser = subparsers.add_parser('youtube', help='Fetch and display YouTube videos')
-    youtube_parser.add_argument('-c', '--category', help='Filter by category')
-    youtube_parser.add_argument('-l', '--limit', type=int, help='Limit number of items')
-    youtube_parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed information')
-    youtube_parser.add_argument('-s', '--save', action='store_true', help='Save results to JSON file')
-    youtube_parser.add_argument('-a', '--api-key', help='YouTube Data API key')
+    # Save the content if requested
+    if args.save:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'content_{timestamp}.json'
+        
+        # Get the content items from the workflow results
+        content_items = None
+        if workflow_results.get('summarize_content'):
+            content_items = workflow_results['summarize_content'].get('content_items', [])
+        elif workflow_results.get('filter_content'):
+            content_items = workflow_results['filter_content'].get('content_items', [])
+        
+        if content_items:
+            import json
+            with open(filename, 'w') as f:
+                json.dump(content_items, f, indent=2)
+            logger.info(f"Saved content to {filename}")
     
-    # Categories command
-    categories_parser = subparsers.add_parser('categories', help='List available categories')
+    return workflow_results
+
+def run_traditional_workflow(args):
+    """Run the content aggregator using the traditional approach."""
+    from backend.aggregator import ContentAggregator
+    from backend.email_digest.digest_generator import DigestGenerator
+    from backend.email_digest.email_sender import EmailSender
     
-    args = parser.parse_args()
+    logger.info("Running content aggregator with traditional workflow")
     
-    if args.command == 'rss':
-        fetch_and_display_rss(args)
-    elif args.command == 'linkedin':
-        fetch_and_display_linkedin(args)
-    elif args.command == 'github':
-        fetch_and_display_github(args)
-    elif args.command == 'youtube':
-        fetch_and_display_youtube(args)
-    elif args.command == 'categories':
-        list_categories(args)
+    # Initialize the aggregator
+    aggregator = ContentAggregator(enable_summarization=args.enable_summarization)
+    
+    # Fetch content based on options
+    all_content = []
+    
+    if args.load:
+        # Load content from file
+        all_content = aggregator.load_content(args.load)
+        logger.info(f"Loaded {len(all_content)} items from {args.load}")
     else:
-        parser.print_help()
+        # Fetch content from sources
+        if args.fetch_all or args.rss_only:
+            rss_content = aggregator.fetch_rss_content()
+            all_content.extend(rss_content)
+            logger.info(f"Fetched {len(rss_content)} RSS items")
+        
+        if args.fetch_all or args.github_only:
+            github_content = aggregator.fetch_github_content()
+            all_content.extend(github_content)
+            logger.info(f"Fetched {len(github_content)} GitHub items")
+        
+        if (args.fetch_all or args.youtube_only) and hasattr(aggregator, 'fetch_youtube_content'):
+            try:
+                youtube_content = aggregator.fetch_youtube_content()
+                all_content.extend(youtube_content)
+                logger.info(f"Fetched {len(youtube_content)} YouTube items")
+            except Exception as e:
+                logger.error(f"Error fetching YouTube content: {e}")
+    
+    # Filter content
+    if args.filter_category:
+        all_content = aggregator.filter_content_by_category(all_content, args.filter_category)
+        logger.info(f"Filtered to {len(all_content)} items in category '{args.filter_category}'")
+    
+    all_content = aggregator.filter_content_by_date(all_content, args.filter_days)
+    logger.info(f"Filtered to {len(all_content)} items from the last {args.filter_days} days")
+    
+    # Search content
+    if args.search:
+        all_content = [item for item in all_content if args.search.lower() in item.get('title', '').lower() or 
+                      args.search.lower() in item.get('summary', '').lower()]
+        logger.info(f"Found {len(all_content)} items matching '{args.search}'")
+    
+    # Save content
+    if args.save:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'content_{timestamp}.json'
+        aggregator.save_content(all_content, filename)
+        logger.info(f"Saved content to {filename}")
+    
+    # Generate and send digest
+    if args.email:
+        digest_generator = DigestGenerator()
+        digest = digest_generator.generate_digest(all_content, max_items=args.max_items)
+        
+        sender = EmailSender()
+        response = sender.send_digest(args.email, "Your Daily Content Digest", digest)
+        logger.info(f"Email process completed! Status: {response.get('Status', 'Sent')}")
+    
+    # Print summary
+    print("\n" + "=" * 80)
+    print(f"CONTENT SUMMARY: {len(all_content)} items")
+    print("=" * 80)
+    
+    for i, item in enumerate(all_content[:10], 1):
+        print(f"{i}. {item['title']}")
+        print(f"   Source: {item['source']}")
+        print(f"   Link: {item['link']}")
+        print()
+    
+    if len(all_content) > 10:
+        print(f"... and {len(all_content) - 10} more items")
+    
+    print("=" * 80)
+    
+    return all_content
 
+def main():
+    """Main entry point for the CLI."""
+    args = parse_args()
+    
+    try:
+        if args.use_strands:
+            # Run the Strands workflow
+            asyncio.run(run_strands_workflow(args))
+        else:
+            # Run the traditional workflow
+            run_traditional_workflow(args)
+    except Exception as e:
+        logger.error(f"Error running content aggregator: {e}", exc_info=True)
+        sys.exit(1)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

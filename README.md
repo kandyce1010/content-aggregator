@@ -52,7 +52,7 @@ Run the CLI tool to fetch and process content:
 python cli.py --fetch-all
 ```
 
-Options:
+Basic Options:
 - `--fetch-all`: Fetch content from all sources
 - `--rss-only`: Fetch only RSS content
 - `--github-only`: Fetch only GitHub content
@@ -62,6 +62,13 @@ Options:
 - `--filter-category CATEGORY`: Filter content by category
 - `--filter-days DAYS`: Filter content from the last X days
 - `--search QUERY`: Search content for a query string
+
+Advanced Options:
+- `--use-strands`: Use Strands-based workflow for better performance
+- `--enable-summarization`: Enable content summarization with Amazon Bedrock
+- `--batch-size SIZE`: Set batch size for summarization (default: 10)
+- `--email EMAIL`: Send digest to specified email address
+- `--max-items COUNT`: Maximum items per category in digest (default: 10)
 
 ### Web Interface
 
@@ -93,6 +100,20 @@ Deploy to AWS Lambda:
 2. Deploy using CloudFormation:
    ```
    aws cloudformation deploy --template-file aws/cloudformation.yaml --stack-name content-aggregator --capabilities CAPABILITY_IAM
+   ```
+
+### Step Functions Workflow
+
+For improved performance and scalability, the content aggregator can be deployed as a Step Functions workflow:
+
+1. Deploy the Step Functions workflow:
+   ```
+   aws cloudformation deploy --template-file aws/step-functions-cloudformation.yaml --stack-name content-aggregator-workflow --capabilities CAPABILITY_IAM
+   ```
+
+2. Start a workflow execution:
+   ```
+   aws stepfunctions start-execution --state-machine-arn <state-machine-arn> --input '{"email":"your-email@example.com","days":7,"max_items":10}'
    ```
 
 ## Configuration

@@ -10,8 +10,17 @@ import json
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
-import googleapiclient.discovery
-from googleapiclient.errors import HttpError
+
+# Try to import googleapiclient, but don't fail if it's not available
+try:
+    import googleapiclient.discovery
+    from googleapiclient.errors import HttpError
+    YOUTUBE_API_AVAILABLE = True
+except ImportError:
+    YOUTUBE_API_AVAILABLE = False
+    # Define dummy HttpError class to avoid errors
+    class HttpError(Exception):
+        pass
 
 # Configure logging
 logging.basicConfig(
@@ -33,11 +42,17 @@ class YouTubeFetcher:
             config_path (str, optional): Path to the configuration file.
             api_key (str, optional): YouTube Data API key.
         """
+        self.available = YOUTUBE_API_AVAILABLE
+        if not self.available:
+            logger.warning("YouTube API client not available. YouTube content will be skipped.")
+            return
+            
         self.config_path = config_path
         self.api_key = api_key or os.environ.get('YOUTUBE_API_KEY')
         
         if not self.api_key:
             logger.warning("YouTube API key not provided. Set YOUTUBE_API_KEY environment variable.")
+            self.available = False
         
         # Load configuration
         self.channels = []
@@ -45,7 +60,7 @@ class YouTubeFetcher:
             # Get the directory of the current file
             current_dir = os.path.dirname(os.path.abspath(__file__))
             # Navigate to the config directory
-            config_path = os.path.join(current_dir, '..', '..', 'config', 'sources.json')
+            config_path = os.path.join(current_dir, '..', 'config', 'sources.json')
         
         try:
             with open(config_path, 'r') as f:
@@ -61,8 +76,8 @@ class YouTubeFetcher:
         Returns:
             list: List of content items from YouTube channels.
         """
-        if not self.api_key:
-            logger.error("YouTube API key not available. Cannot fetch YouTube content.")
+        if not self.available or not self.api_key:
+            logger.warning("YouTube fetcher not available")
             return []
         
         all_items = []
@@ -87,6 +102,9 @@ class YouTubeFetcher:
         Returns:
             list: List of videos from the channel.
         """
+        if not self.available or not self.api_key:
+            return []
+            
         try:
             # Create YouTube API client
             youtube = googleapiclient.discovery.build(

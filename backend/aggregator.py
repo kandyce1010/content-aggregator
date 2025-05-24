@@ -144,9 +144,7 @@ class ContentAggregator:
                     linkedin_future = executor.submit(self.fetch_linkedin_content)
                     futures.append(linkedin_future)
                 
-                if YOUTUBE_AVAILABLE:
-                    youtube_future = executor.submit(self.fetch_youtube_content)
-                    futures.append(youtube_future)
+                # Removed YouTube fetcher call
                 
                 # Collect results as they complete
                 for future in concurrent.futures.as_completed(futures):
@@ -163,8 +161,7 @@ class ContentAggregator:
             if LINKEDIN_AVAILABLE:
                 all_content.extend(self.fetch_linkedin_content())
             
-            if YOUTUBE_AVAILABLE:
-                all_content.extend(self.fetch_youtube_content())
+            # Removed YouTube fetcher call
         
         # Deduplicate content if requested
         if deduplicate:

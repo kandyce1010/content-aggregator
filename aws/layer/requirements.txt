@@ -1,0 +1,7 @@
+feedparser
+requests
+beautifulsoup4
+pytz
+boto3
+botocore
+jinja2

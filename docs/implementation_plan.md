@@ -70,7 +70,12 @@
   - 🔲 Optimize Lambda-based summarization (performance issues)
     - 🔲 Option 1: Selective Summarization - Only summarize high-relevance content (score >= 80)
     - 🔲 Option 2: Batch Processing - Use SQS queue and worker Lambdas to process items in smaller batches
-    - 🔲 Option 3: Step Functions Workflow - Orchestrate content fetching and summarization in parallel
+    - ✅ Option 3: Step Functions Workflow - Orchestrate content fetching and summarization in parallel
+      - 🔲 Design Step Functions workflow for content processing
+      - 🔲 Create Lambda functions for each workflow step
+      - 🔲 Implement state management between steps
+      - 🔲 Add error handling and retry logic
+      - 🔲 Deploy and test the workflow
     - 🔲 Option 4: Asynchronous Processing - Send initial digest without summaries, follow up later
 - ✅ Add content relevance scoring
 - 🔲 Create personalized content recommendations

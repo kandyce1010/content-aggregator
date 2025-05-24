@@ -1,0 +1,435 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Content Aggregator with Step Functions Workflow'
+
+Parameters:
+  DeploymentBucket:
+    Type: String
+    Description: S3 bucket for Lambda function deployment packages
+    Default: content-aggregator-deployment
+  
+  ContentBucketPrefix:
+    Type: String
+    Description: Prefix for S3 bucket for storing content data
+    Default: content-aggregator-data
+  
+  RecipientEmail:
+    Type: String
+    Description: Email address to receive content digests
+    Default: your-email@example.com
+  
+  ScheduleExpression:
+    Type: String
+    Description: Schedule expression for the EventBridge rule
+    Default: cron(0 12 * * ? *)
+  
+  FilterDays:
+    Type: Number
+    Description: Number of days to filter content
+    Default: 1
+  
+  MaxItems:
+    Type: Number
+    Description: Maximum items per category in digest
+    Default: 10
+  
+  BatchSize:
+    Type: Number
+    Description: Number of items to process in each summarization batch
+    Default: 10
+
+Resources:
+  # Generate a unique bucket name using account ID
+  ContentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "${ContentBucketPrefix}-${AWS::AccountId}"
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldContent
+            Status: Enabled
+            ExpirationInDays: 7
+
+  ContentFetcherFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: content-fetcher
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          S3_BUCKET_NAME: !Ref ContentBucket
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: content-fetcher.zip
+
+  ContentFilterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: content-filter
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          S3_BUCKET_NAME: !Ref ContentBucket
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: content-filter.zip
+
+  BatchDistributorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: batch-distributor
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 60
+      MemorySize: 128
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          S3_BUCKET_NAME: !Ref ContentBucket
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: batch-distributor.zip
+
+  ContentSummarizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: content-summarizer
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          S3_BUCKET_NAME: !Ref ContentBucket
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: content-summarizer.zip
+
+  BatchCollectorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: batch-collector
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          S3_BUCKET_NAME: !Ref ContentBucket
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: batch-collector.zip
+
+  DigestGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: digest-generator
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          S3_BUCKET_NAME: !Ref ContentBucket
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: digest-generator.zip
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonSESFullAccess
+        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+      Policies:
+        - PolicyName: S3BucketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                  - s3:HeadBucket
+                  - s3:HeadObject
+                  - s3:CreateBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${ContentBucket}"
+                  - !Sub "arn:aws:s3:::${ContentBucket}/*"
+        - PolicyName: SNSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:ListTopics
+                  - sns:Publish
+                  - sns:CreateTopic
+                  - sns:Subscribe
+                  - sns:GetTopicAttributes
+                  - sns:ListSubscriptionsByTopic
+                Resource: "*"
+
+  StepFunctionsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+
+  ContentAggregatorStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: ContentAggregatorWorkflow
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Content Aggregator Workflow",
+          "StartAt": "FetchContent",
+          "States": {
+            "FetchContent": {
+              "Type": "Task",
+              "Resource": "${ContentFetcherFunction.Arn}",
+              "Next": "FilterContent",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1.5
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "WorkflowFailed"
+                }
+              ]
+            },
+            "FilterContent": {
+              "Type": "Task",
+              "Resource": "${ContentFilterFunction.Arn}",
+              "Next": "DistributeBatches",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1.5
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "WorkflowFailed"
+                }
+              ]
+            },
+            "DistributeBatches": {
+              "Type": "Task",
+              "Resource": "${BatchDistributorFunction.Arn}",
+              "Next": "SummarizeBatches",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1.5
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "WorkflowFailed"
+                }
+              ]
+            },
+            "SummarizeBatches": {
+              "Type": "Map",
+              "ItemsPath": "$.batches",
+              "MaxConcurrency": 10,
+              "Iterator": {
+                "StartAt": "SummarizeBatch",
+                "States": {
+                  "SummarizeBatch": {
+                    "Type": "Task",
+                    "Resource": "${ContentSummarizerFunction.Arn}",
+                    "Retry": [
+                      {
+                        "ErrorEquals": ["States.TaskFailed"],
+                        "IntervalSeconds": 3,
+                        "MaxAttempts": 2,
+                        "BackoffRate": 1.5
+                      }
+                    ],
+                    "End": true
+                  }
+                }
+              },
+              "ResultPath": "$.batch_results",
+              "Next": "CollectBatches",
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "WorkflowFailed"
+                }
+              ]
+            },
+            "CollectBatches": {
+              "Type": "Task",
+              "Resource": "${BatchCollectorFunction.Arn}",
+              "Next": "GenerateDigest",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1.5
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "WorkflowFailed"
+                }
+              ]
+            },
+            "GenerateDigest": {
+              "Type": "Task",
+              "Resource": "${DigestGeneratorFunction.Arn}",
+              "Next": "WorkflowSucceeded",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1.5
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "WorkflowFailed"
+                }
+              ]
+            },
+            "WorkflowSucceeded": {
+              "Type": "Succeed"
+            },
+            "WorkflowFailed": {
+              "Type": "Fail",
+              "Error": "WorkflowFailed",
+              "Cause": "Workflow execution failed"
+            }
+          }
+        }
+
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: DailyContentAggregatorTrigger
+      Description: Triggers the Content Aggregator workflow daily
+      ScheduleExpression: !Ref ScheduleExpression
+      State: ENABLED
+      Targets:
+        - Arn: !Ref ContentAggregatorStateMachine
+          Id: ContentAggregatorWorkflow
+          RoleArn: !GetAtt EventsExecutionRole.Arn
+          Input: !Sub |
+            {
+              "days": ${FilterDays},
+              "email": "${RecipientEmail}",
+              "max_items": ${MaxItems},
+              "batch_size": ${BatchSize}
+            }
+
+  EventsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionsExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref ContentAggregatorStateMachine
+
+Outputs:
+  StateMachineArn:
+    Description: ARN of the Content Aggregator State Machine
+    Value: !Ref ContentAggregatorStateMachine
+  
+  ContentBucketName:
+    Description: Name of the S3 bucket for content storage
+    Value: !Ref ContentBucket
+  
+  ContentFetcherFunctionArn:
+    Description: ARN of the Content Fetcher Lambda Function
+    Value: !GetAtt ContentFetcherFunction.Arn
+  
+  ContentFilterFunctionArn:
+    Description: ARN of the Content Filter Lambda Function
+    Value: !GetAtt ContentFilterFunction.Arn
+  
+  BatchDistributorFunctionArn:
+    Description: ARN of the Batch Distributor Lambda Function
+    Value: !GetAtt BatchDistributorFunction.Arn
+  
+  ContentSummarizerFunctionArn:
+    Description: ARN of the Content Summarizer Lambda Function
+    Value: !GetAtt ContentSummarizerFunction.Arn
+  
+  BatchCollectorFunctionArn:
+    Description: ARN of the Batch Collector Lambda Function
+    Value: !GetAtt BatchCollectorFunction.Arn
+  
+  DigestGeneratorFunctionArn:
+    Description: ARN of the Digest Generator Lambda Function
+    Value: !GetAtt DigestGeneratorFunction.Arn
