@@ -4,6 +4,9 @@ AWS Lambda Function for Content Aggregator
 
 This module contains the Lambda function handler that will be invoked by EventBridge
 to generate and send the content digest.
+
+NOTE: This Lambda function is DEPRECATED. 
+Use the Step Functions workflow (ContentAggregatorWorkflow) instead.
 """
 
 import os

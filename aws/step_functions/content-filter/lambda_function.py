@@ -73,8 +73,10 @@ def lambda_handler(event, context):
             content_items = aggregator.filter_content_by_category(content_items, category)
             logger.info(f"After category filtering: {len(content_items)} items")
         
-        # Filter by date
+        # Filter by date - restrict to only the last 1-2 days
         logger.info(f"Filtering by date: last {days} days")
+        # Override days parameter to ensure we only get recent content (1-2 days)
+        days = min(days, 2)  # Limit to maximum of 2 days
         content_items = aggregator.filter_content_by_date(content_items, days)
         logger.info(f"After date filtering: {len(content_items)} items")
         

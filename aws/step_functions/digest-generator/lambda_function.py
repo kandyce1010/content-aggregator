@@ -88,6 +88,25 @@ def lambda_handler(event, context):
         digest_generator = DigestGenerator()
         digest = digest_generator.generate_text_digest(content_items, max_items_per_category=max_items)
         
+        # Include AI summaries in the digest if available
+        for item in content_items:
+            if item.get('ai_summary') or item.get('generated_summary'):
+                # If the item has a summary, make sure it's included in the digest
+                summary = item.get('ai_summary') or item.get('generated_summary')
+                if summary and summary not in digest:
+                    # This is a simple approach - in a real implementation, you'd want to
+                    # modify the DigestGenerator to properly include summaries in the template
+                    item_title = item.get('title', '')
+                    if item_title in digest:
+                        # Find the position of the title in the digest
+                        pos = digest.find(item_title)
+                        if pos > -1:
+                            # Find the end of the line containing the title
+                            end_pos = digest.find('\n', pos)
+                            if end_pos > -1:
+                                # Insert the summary after the title line
+                                digest = digest[:end_pos+1] + f"  Summary: {summary}\n" + digest[end_pos+1:]
+        
         # Send the email
         logger.info(f"Sending email digest to {email}")
         sender = EmailSender()

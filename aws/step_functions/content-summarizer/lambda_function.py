@@ -68,7 +68,20 @@ def lambda_handler(event, context):
         
         # Summarize the batch
         logger.info(f"Summarizing {len(batch_items)} items")
-        summarized_items = summarizer.batch_summarize(batch_items)
+        summarized_items = []
+        
+        # Process items in smaller sub-batches to avoid timeouts
+        sub_batch_size = 3  # Process just a few items at a time
+        for i in range(0, len(batch_items), sub_batch_size):
+            sub_batch = batch_items[i:i+sub_batch_size]
+            try:
+                logger.info(f"Processing sub-batch {i//sub_batch_size + 1} with {len(sub_batch)} items")
+                summarized_sub_batch = summarizer.batch_summarize(sub_batch)
+                summarized_items.extend(summarized_sub_batch)
+            except Exception as e:
+                logger.error(f"Error summarizing sub-batch: {e}")
+                # If summarization fails, add the original items without summaries
+                summarized_items.extend(sub_batch)
         
         # Copy generated_summary to ai_summary for compatibility
         summary_count = 0
