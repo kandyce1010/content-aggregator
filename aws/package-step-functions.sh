@@ -1,5 +1,7 @@
 #!/bin/bash
 # Script to package and deploy the Step Functions workflow
+# DEPRECATED: This script is deprecated in favor of the unified deploy-all.sh script.
+# Please use ./aws/deploy-all.sh instead for all deployments.
 
 # Set variables
 DEPLOYMENT_BUCKET="content-aggregator-deployment"

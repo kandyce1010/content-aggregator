@@ -150,14 +150,17 @@ class DigestGenerator:
         Returns:
             int: Relevance score (0-100)
         """
-        primary_keywords = ['amazon q', 'q developer', 'codewhisperer']
+        primary_keywords = ['amazon q', 'q developer', 'codewhisperer', 'kiro']
         secondary_keywords = ['coding assistant', 'ai pair programming', 'code generation']
         tertiary_keywords = ['generative ai', 'llm', 'large language model', 'ai coding']
         competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
         
         score = 0
-        title = item.get('title', '').lower()
-        summary = item.get('summary', '').lower()
+        # Handle None values properly
+        title = item.get('title', '') or ''
+        title = title.lower()
+        summary = item.get('summary', '') or ''
+        summary = summary.lower()
         content = title + ' ' + summary
         
         # Primary keywords (Amazon Q specific)
@@ -280,8 +283,11 @@ class DigestGenerator:
         competitor_keywords = ['github copilot', 'anthropic claude', 'openai', 'gpt', 'bard', 'gemini']
         competitor_items = []
         for item in items:
-            title = item.get('title', '').lower()
-            summary = item.get('summary', '').lower()
+            # Handle None values properly
+            title = item.get('title', '') or ''
+            title = title.lower()
+            summary = item.get('summary', '') or ''
+            summary = summary.lower()
             content = title + ' ' + summary
             for keyword in competitor_keywords:
                 if keyword in content:

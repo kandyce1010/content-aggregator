@@ -1,6 +1,12 @@
 {
   "rss_feeds": [
     {
+      "name": "Kiro keywords",
+      "url": "https://www.google.com/alerts/feeds/05739473205985468954/6569813976839804221",
+      "category": "Kiro"
+
+    },
+    {
       "name": "Google Alert - AI-assisted coding",
       "url": "https://www.google.com/alerts/feeds/05739473205985468954/5446857016790204396",
       "category": "AI Coding Assistants"

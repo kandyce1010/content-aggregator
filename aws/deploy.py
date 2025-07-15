@@ -3,6 +3,9 @@
 Lambda Deployment Script
 
 This script packages and deploys the Content Aggregator Lambda function.
+
+DEPRECATED: This script is deprecated in favor of the unified deploy-all.sh script.
+Please use ./aws/deploy-all.sh instead for all deployments.
 """
 
 import os
