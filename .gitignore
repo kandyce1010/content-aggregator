@@ -16,9 +16,8 @@ dist/
 build/
 *.egg-info/
 
-# Data files
+# Data files (but keep README)
 data/
-# Keep the README.md file in the data directory
 !data/README.md
 
 # IDE specific files
@@ -32,12 +31,26 @@ data/
 *.log
 logs/
 
-# Local configuration
+# Environment variables and secrets
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+*.pem
+*.key
+*.crt
+secrets.json
+config.json
+
+# Test files with sensitive data
+test-input.json
+payload.json
+response.json
+*test*.json
+test_payload.json
+response*.json
+content-aggregator-fixed.zip
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -51,8 +64,36 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
-*.zip
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# OS generated files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# AWS deployment artifacts
 deployment/
 layer-build/
-payload.json
-response.json
+*.zip
+*.tar.gz
+
+# Personal configuration
+personal_config/
+my_sources.json
+
+# Cache directories
+.cache/
+cache/
+summary_cache/
+
+# Amazon Q CLI files
+.amazonq/

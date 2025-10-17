@@ -12,9 +12,9 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from backend.aggregator import ContentAggregator
-from backend.email_digest.digest_generator import DigestGenerator
-from backend.email_digest.email_sender import EmailSender
+from backend.core.aggregator import ContentAggregator
+from backend.core.email_digest.digest_generator import DigestGenerator
+from backend.core.email_digest.email_sender import EmailSender
 
 # Configure logging
 logging.basicConfig(

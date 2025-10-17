@@ -9,7 +9,19 @@ import argparse
 import asyncio
 import logging
 import sys
+import os
 from datetime import datetime
+from pathlib import Path
+
+# Import validation utilities
+from backend.core.utils.validation import (
+    validate_email_address, 
+    validate_days, 
+    validate_max_items, 
+    validate_batch_size,
+    sanitize_filename,
+    ValidationError
+)
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +42,7 @@ def parse_args():
     
     # Filter options
     parser.add_argument('--filter-category', type=str, help='Filter content by category')
-    parser.add_argument('--filter-days', type=int, default=7, help='Filter content from the last X days')
+    parser.add_argument('--filter-days', type=int, default=7, help='Filter content from the last X days (1-365)')
     
     # Output options
     parser.add_argument('--save', action='store_true', help='Save fetched content to a file')
@@ -39,78 +51,62 @@ def parse_args():
     
     # Email options
     parser.add_argument('--email', type=str, help='Send digest to email address')
-    parser.add_argument('--max-items', type=int, default=10, help='Maximum items per category')
+    parser.add_argument('--max-items', type=int, default=10, help='Maximum items per category (1-100)')
     
     # Workflow options
-    parser.add_argument('--use-strands', action='store_true', help='Use Strands workflow')
     parser.add_argument('--enable-summarization', action='store_true', help='Enable content summarization')
-    parser.add_argument('--batch-size', type=int, default=10, help='Batch size for summarization')
+    parser.add_argument('--batch-size', type=int, default=10, help='Batch size for summarization (1-50)')
     
     return parser.parse_args()
 
-async def run_strands_workflow(args):
-    """Run the content aggregator using Strands workflow."""
-    from backend.strands.workflow import ContentAggregatorWorkflow
-    from backend.email_digest.email_sender import EmailSender
-    
-    logger.info("Running content aggregator with Strands workflow")
-    
-    # Create and run the workflow
-    workflow = ContentAggregatorWorkflow(
-        email=args.email,
-        days=args.filter_days,
-        max_items=args.max_items,
-        category=args.filter_category or "",
-        enable_summarization=args.enable_summarization,
-        batch_size=args.batch_size
-    )
-    
-    # Run the workflow
-    workflow_results = await workflow.run()
-    
-    # Extract the digest content
-    digest_results = workflow_results.get('generate_digest', {})
-    digest_content = digest_results.get('digest', '')
-    
-    # Print the digest content
-    print("\n" + "=" * 80)
-    print("CONTENT DIGEST")
-    print("=" * 80)
-    print(digest_content)
-    print("=" * 80)
-    
-    # Send the email if requested
-    if args.email and digest_content:
-        logger.info(f"Sending email digest to {args.email}")
-        sender = EmailSender()
-        response = sender.send_digest(args.email, "Your Daily Content Digest", digest_content)
-        logger.info(f"Email process completed! Status: {response.get('Status', 'Sent')}")
-    
-    # Save the content if requested
-    if args.save:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'content_{timestamp}.json'
+def validate_args(args):
+    """Validate command line arguments."""
+    try:
+        # Validate email if provided
+        if args.email:
+            args.email = validate_email_address(args.email)
         
-        # Get the content items from the workflow results
-        content_items = None
-        if workflow_results.get('summarize_content'):
-            content_items = workflow_results['summarize_content'].get('content_items', [])
-        elif workflow_results.get('filter_content'):
-            content_items = workflow_results['filter_content'].get('content_items', [])
+        # Validate numeric parameters
+        args.filter_days = validate_days(args.filter_days)
+        args.max_items = validate_max_items(args.max_items)
+        args.batch_size = validate_batch_size(args.batch_size)
         
-        if content_items:
-            import json
-            with open(filename, 'w') as f:
-                json.dump(content_items, f, indent=2)
-            logger.info(f"Saved content to {filename}")
-    
-    return workflow_results
+        # Validate file paths
+        if args.load:
+            load_path = Path(args.load)
+            if not load_path.exists():
+                raise ValidationError(f"File not found: {args.load}")
+            if not load_path.is_file():
+                raise ValidationError(f"Path is not a file: {args.load}")
+            # Ensure file is within current directory or subdirectories for security
+            try:
+                load_path.resolve().relative_to(Path.cwd().resolve())
+            except ValueError:
+                raise ValidationError("File must be within the current directory")
+        
+        # Validate search query
+        if args.search:
+            if len(args.search) > 200:
+                raise ValidationError("Search query too long (max 200 characters)")
+            args.search = args.search.strip()
+        
+        # Validate category filter
+        if args.filter_category:
+            if len(args.filter_category) > 50:
+                raise ValidationError("Category name too long (max 50 characters)")
+            args.filter_category = args.filter_category.strip()
+        
+        return args
+        
+    except ValidationError as e:
+        logger.error(f"Validation error: {e}")
+        sys.exit(1)
 
 def run_traditional_workflow(args):
     """Run the content aggregator using the traditional approach."""
-    from backend.aggregator import ContentAggregator
-    from backend.email_digest.digest_generator import DigestGenerator
-    from backend.email_digest.email_sender import EmailSender
+    from backend.core.aggregator import ContentAggregator
+    from backend.core.email_digest.digest_generator import DigestGenerator
+    from backend.core.email_digest.email_sender import EmailSender
     
     logger.info("Running content aggregator with traditional workflow")
     
@@ -161,9 +157,17 @@ def run_traditional_workflow(args):
     # Save content
     if args.save:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'content_{timestamp}.json'
-        aggregator.save_content(all_content, filename)
-        logger.info(f"Saved content to {filename}")
+        filename = sanitize_filename(f'content_{timestamp}.json')
+        
+        # Ensure we save to a safe location
+        safe_path = Path.cwd() / 'data' / filename
+        safe_path.parent.mkdir(exist_ok=True)
+        
+        try:
+            aggregator.save_content(all_content, str(safe_path))
+            logger.info(f"Saved content to {safe_path}")
+        except Exception as e:
+            logger.error(f"Failed to save content: {e}")
     
     # Generate and send digest
     if args.email:
@@ -194,15 +198,21 @@ def run_traditional_workflow(args):
 
 def main():
     """Main entry point for the CLI."""
-    args = parse_args()
-    
     try:
-        if args.use_strands:
-            # Run the Strands workflow
-            asyncio.run(run_strands_workflow(args))
-        else:
-            # Run the traditional workflow
-            run_traditional_workflow(args)
+        args = parse_args()
+        args = validate_args(args)
+        
+        # Check if at least one action is specified
+        if not any([args.fetch_all, args.rss_only, args.github_only, args.youtube_only, args.load]):
+            logger.error("No action specified. Use --fetch-all, --rss-only, --github-only, --youtube-only, or --load")
+            sys.exit(1)
+        
+        # Run the workflow
+        run_traditional_workflow(args)
+            
+    except KeyboardInterrupt:
+        logger.info("Operation cancelled by user")
+        sys.exit(0)
     except Exception as e:
         logger.error(f"Error running content aggregator: {e}", exc_info=True)
         sys.exit(1)
