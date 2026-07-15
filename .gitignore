@@ -86,6 +86,10 @@ layer-build/
 *.zip
 *.tar.gz
 
+# SAM build output and saved deploy config (contains account ID)
+.aws-sam/
+samconfig.toml
+
 # Personal configuration
 personal_config/
 my_sources.json

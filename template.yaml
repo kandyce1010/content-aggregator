@@ -1,0 +1,233 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Content Aggregator — daily HTML digest of Kiro and AI dev tools news,
+  delivered via SES. Runs entirely within AWS Free Tier (SES, Lambda,
+  Step Functions, S3, EventBridge).
+
+Parameters:
+  RecipientEmail:
+    Type: String
+    Description: Email address that receives the daily digest (must be SES-verified in sandbox)
+
+  FromEmail:
+    Type: String
+    Description: SES-verified sender address (can be the same as RecipientEmail)
+
+  GitHubToken:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: GitHub personal access token (optional — raises API rate limit from 60 to 5000 req/hr)
+
+  YouTubeApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: YouTube Data API v3 key (optional — omit to skip YouTube sources)
+
+  DigestSchedule:
+    Type: String
+    Default: 'cron(0 13 * * ? *)'
+    Description: >
+      EventBridge schedule for the daily digest (UTC). Default is 8 AM ET / 1 PM UTC.
+      Format: cron(Minutes Hours Day-of-month Month Day-of-week Year)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 300
+    MemorySize: 256
+    CodeUri: ./
+    Environment:
+      Variables:
+        S3_BUCKET_NAME: !Ref ContentBucket
+        FROM_EMAIL: !Ref FromEmail
+        RECIPIENT_EMAIL: !Ref RecipientEmail
+        GITHUB_TOKEN: !Ref GitHubToken
+        YOUTUBE_API_KEY: !Ref YouTubeApiKey
+
+Resources:
+
+  # ── S3 ────────────────────────────────────────────────────────────────────
+  ContentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Suffix with account ID to guarantee global uniqueness
+      BucketName: !Sub 'content-aggregator-${AWS::AccountId}'
+      # Auto-delete intermediate objects after 1 day — keeps storage at zero
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteIntermediateObjects
+            Status: Enabled
+            ExpirationInDays: 1
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ── Lambda functions ───────────────────────────────────────────────────────
+  ContentFetcherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: content-aggregator-fetcher
+      Handler: backend.lambda_handlers.step_functions.content_fetcher.lambda_function.lambda_handler
+      Description: Fetches content from RSS feeds, GitHub, and YouTube into S3
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ContentBucket
+        - CloudWatchLogsFullAccess
+
+  ContentFilterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: content-aggregator-filter
+      Handler: backend.lambda_handlers.step_functions.content_filter.lambda_function.lambda_handler
+      Description: Deduplicates, date-filters, and relevance-scores content
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ContentBucket
+        - CloudWatchLogsFullAccess
+
+  DigestGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: content-aggregator-digest-generator
+      Handler: backend.lambda_handlers.step_functions.digest_generator.lambda_function.lambda_handler
+      Description: Renders the HTML digest template and sends it via SES
+      Timeout: 60
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ContentBucket
+        - CloudWatchLogsFullAccess
+        - Statement:
+            - Effect: Allow
+              Action: ses:SendEmail
+              Resource: '*'
+
+  # ── Step Functions state machine ───────────────────────────────────────────
+  ContentAggregatorStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: ContentAggregatorWorkflow
+      Definition:
+        Comment: Daily content aggregation pipeline
+        StartAt: FetchContent
+        States:
+          FetchContent:
+            Type: Task
+            Resource: !GetAtt ContentFetcherFunction.Arn
+            Next: FilterContent
+            Retry:
+              - ErrorEquals: [States.TaskFailed]
+                IntervalSeconds: 30
+                MaxAttempts: 2
+                BackoffRate: 2
+            Catch:
+              - ErrorEquals: [States.ALL]
+                Next: WorkflowFailed
+
+          FilterContent:
+            Type: Task
+            Resource: !GetAtt ContentFilterFunction.Arn
+            Next: GenerateDigest
+            Retry:
+              - ErrorEquals: [States.TaskFailed]
+                IntervalSeconds: 30
+                MaxAttempts: 2
+                BackoffRate: 2
+            Catch:
+              - ErrorEquals: [States.ALL]
+                Next: WorkflowFailed
+
+          GenerateDigest:
+            Type: Task
+            Resource: !GetAtt DigestGeneratorFunction.Arn
+            End: true
+            Retry:
+              - ErrorEquals: [States.TaskFailed]
+                IntervalSeconds: 30
+                MaxAttempts: 2
+                BackoffRate: 2
+            Catch:
+              - ErrorEquals: [States.ALL]
+                Next: WorkflowFailed
+
+          WorkflowFailed:
+            Type: Fail
+            Error: WorkflowFailed
+            Cause: A step in the content aggregator pipeline failed after retries
+
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ContentFetcherFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ContentFilterFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DigestGeneratorFunction
+        - CloudWatchLogsFullAccess
+
+  # ── EventBridge rule ───────────────────────────────────────────────────────
+  DailyDigestRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: content-aggregator-daily-digest
+      Description: Triggers the content aggregator digest workflow daily
+      ScheduleExpression: !Ref DigestSchedule
+      State: ENABLED
+      Targets:
+        - Id: ContentAggregatorStateMachine
+          Arn: !Ref ContentAggregatorStateMachine
+          RoleArn: !GetAtt EventBridgeExecutionRole.Arn
+          Input: !Sub |
+            {
+              "email": "${RecipientEmail}",
+              "days": 2,
+              "max_items": 10,
+              "batch_size": 10
+            }
+
+  EventBridgeExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: content-aggregator-eventbridge-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartStateMachine
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref ContentAggregatorStateMachine
+
+  # ── SES email identity ─────────────────────────────────────────────────────
+  # Creates the SES identity and sends a verification email to FromEmail.
+  # You must click the link in that email before the first digest can be sent.
+  SenderEmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref FromEmail
+
+Outputs:
+  StateMachineArn:
+    Description: Step Functions state machine ARN
+    Value: !Ref ContentAggregatorStateMachine
+
+  ContentBucketName:
+    Description: S3 bucket used for intermediate content storage
+    Value: !Ref ContentBucket
+
+  ManualRunCommand:
+    Description: AWS CLI command to trigger a digest run immediately
+    Value: !Sub >-
+      aws stepfunctions start-execution
+      --state-machine-arn ${ContentAggregatorStateMachine}
+      --input "{\"email\":\"${RecipientEmail}\",\"days\":2,\"max_items\":10}"
