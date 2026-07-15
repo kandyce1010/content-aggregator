@@ -172,7 +172,7 @@ def run_traditional_workflow(args):
     # Generate and send digest
     if args.email:
         digest_generator = DigestGenerator()
-        digest = digest_generator.generate_digest(all_content, max_items=args.max_items)
+        digest = digest_generator.generate_digest(all_content, max_items_per_category=args.max_items)
         
         sender = EmailSender()
         response = sender.send_digest(args.email, "Your Daily Content Digest", digest)
